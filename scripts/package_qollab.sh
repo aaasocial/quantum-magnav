@@ -9,7 +9,10 @@ cd "$(dirname "$0")/.."
 MAX_FILES=100
 MAX_BYTES=2097152      # 2 MB per file
 MAX_README_CHARS=65000
-FORBIDDEN='__pycache__|\.DS_Store|node_modules|\.env|\.venv|\.planning|web/'
+FORBIDDEN='__pycache__|\.DS_Store|node_modules|\.env|\.venv|\.planning|web/|credentials|\.pem$|\.key$|id_rsa|\.npmrc|\.netrc'
+# Content scan (WR-06). Keyword assignments are case-insensitive; key shapes are exact.
+SECRET_ASSIGN='(api[_-]?key|access[_-]?key|secret[_-]?key|client[_-]?secret|auth[_-]?token|access[_-]?token|token|secret|passw(or)?d)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"'[:space:]]{8,}'
+SECRET_SHAPES='AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|xox[abprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -22,9 +25,14 @@ rm -f dist/qollab-upload.zip dist/qollab-fallback-py.zip
 
 shopt -s nullglob
 PY_FILES=(magnav/*.py)
-DATA_FILES=(data/*)
 shopt -u nullglob
 [ "${#PY_FILES[@]}" -gt 0 ] || fail "no magnav/*.py files found"
+# Explicit allowlist: Qollab preloads a data file only if its path is a literal in the
+# Python code, so every entry here must also appear verbatim in magnav/*.py.
+DATA_FILES=(data/smoke.json)
+for f in "${DATA_FILES[@]}"; do
+  [ -f "$f" ] || fail "data entry is not a regular file: $f"
+done
 
 COMMON=(requirements.txt LICENSE README.md "${PY_FILES[@]}" "${DATA_FILES[@]}")
 # main.py stays out of the JS upload: if Qollab ran it, it could take the run's one IonQ job.
@@ -59,7 +67,17 @@ check_zip() {
 # Exact, literal match. No -q: an early grep exit would SIGPIPE zipinfo and trip pipefail.
 has_entry() { zipinfo -1 "$1" | grep -xF -- "$2" >/dev/null; }
 
+scan_secrets() {
+  local hits
+  hits=$( { grep -nIiE -- "$SECRET_ASSIGN" "$@" || true; grep -nIE -- "$SECRET_SHAPES" "$@" || true; } | cut -c1-200)
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" >&2
+    fail "possible secret in files to be zipped (see matches above)"
+  fi
+}
+
 check_sources "${UPLOAD[@]}" main.py
+scan_secrets "${UPLOAD[@]}" main.py
 
 zip -X -q dist/qollab-upload.zip "${UPLOAD[@]}"
 zip -X -q dist/qollab-fallback-py.zip "${FALLBACK[@]}"
