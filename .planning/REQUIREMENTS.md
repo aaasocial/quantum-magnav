@@ -17,17 +17,17 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Real Data
 
-- [ ] **DATA-01**: A local-only preprocessing script `scripts/preprocess_sgl.py` (uses h5py, runs only on the dev machine, never imported by `magnav/` or shipped to Qollab) reads Flt1006, Flt1003 and Flt1007 from `data_raw/`, extracts calibration line 1006.08 (tt 55770–56609) and held-out lines 1003.02 (tt 50713–54497) and 1007.06 (tt 57770–63010), keeps only the needed channels (`tt`, `mag_1_c`, `mag_1_igrf`, `mag_3_uc`, `mag_4_uc`, `mag_5_uc`, `flux_a..d` x/y/z/t, `cur_*`, `ins_pitch`/`ins_roll`/`ins_yaw`, `ins_vn`/`ins_vw`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`), and decimates or crops so each output (`data/flt1006_line08.npz`, `data/flt1003_line02.npz`, `data/flt1007_line06.npz`) is under 2 MB
-- [ ] **DATA-02**: The same script crops MagNav.jl `Eastern_395.h5` and `Renfrew_395.h5` (395 m HAE, nT) to each held-out line's bounding box plus a margin and writes `data/map_eastern_395.npz` and `data/map_renfrew_395.npz` (nT grid, lon/lat vectors, validity mask), each under 2 MB; k-NN-filled cells are marked invalid, and EMAG2v3 (DOI 10.7289/V5H70CVX) is used at most as a coarse-map comparison, never as the navigation map
-- [ ] **DATA-03**: A provenance sidecar `data/provenance.json` records, per output file, the source file, line number, tt range, decimation factor, channel list and source-file SHA-256; reproducibility means the same input files plus the same script give byte-identical outputs, and a test asserts every file in `data/` is under 2 MB
-- [ ] **DATA-04**: `magnav/` loads the excerpts through literal path strings (e.g. `"data/flt1003_line02.npz"`) and splits each line into a `Truth` object (`mag_1_c`, `mag_1_igrf`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`) and a `Sensors` object (cabin mags, fluxgates, `cur_*`, INS attitude and velocities, simulated INS track) so that no estimator or denoiser function can accept truth; truth is used only by metrics
-- [ ] **DATA-05**: A simulated INS-drift track integrates `ins_vn`/`ins_vw` from the last GPS fix at the jam time, adding a constant velocity bias and a random walk with documented parameters and a fixed recorded RNG state, because the recorded INS channels are GPS-aided and do not drift
+- [x] **DATA-01**: A local-only preprocessing script `scripts/preprocess_sgl.py` (uses h5py, runs only on the dev machine, never imported by `magnav/` or shipped to Qollab) reads Flt1006, Flt1003 and Flt1007 from `data_raw/`, extracts calibration line 1006.08 (tt 55770–56609) and held-out lines 1003.02 (tt 50713–54497) and 1007.06 (tt 57770–63010), keeps only the needed channels (`tt`, `mag_1_c`, `mag_1_igrf`, `mag_3_uc`, `mag_4_uc`, `mag_5_uc`, `flux_a..d` x/y/z/t, `cur_*`, `ins_pitch`/`ins_roll`/`ins_yaw`, `ins_vn`/`ins_vw`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`), and decimates or crops so each output (`data/flt1006_line08.npz`, `data/flt1003_line02.npz`, `data/flt1007_line06.npz`) is under 2 MB
+- [x] **DATA-02**: The same script crops MagNav.jl `Eastern_395.h5` and `Renfrew_395.h5` (395 m HAE, nT) to each held-out line's bounding box plus a margin and writes `data/map_eastern_395.npz` and `data/map_renfrew_395.npz` (nT grid, lon/lat vectors, validity mask), each under 2 MB; k-NN-filled cells are marked invalid, and EMAG2v3 (DOI 10.7289/V5H70CVX) is used at most as a coarse-map comparison, never as the navigation map
+- [x] **DATA-03**: A provenance sidecar `data/provenance.json` records, per output file, the source file, line number, tt range, decimation factor, channel list and source-file SHA-256; reproducibility means the same input files plus the same script give byte-identical outputs, and a test asserts every file in `data/` is under 2 MB
+- [x] **DATA-04**: `magnav/` loads the excerpts through literal path strings (e.g. `"data/flt1003_line02.npz"`) and splits each line into a `Truth` object (`mag_1_c`, `mag_1_igrf`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`) and a `Sensors` object (cabin mags, fluxgates, `cur_*`, INS attitude and velocities, simulated INS track) so that no estimator or denoiser function can accept truth; truth is used only by metrics
+- [x] **DATA-05**: A simulated INS-drift track integrates `ins_vn`/`ins_vw` from the last GPS fix at the jam time, adding a constant velocity bias and a random walk with documented parameters and a fixed recorded RNG state, because the recorded INS channels are GPS-aided and do not drift
 
 ### Classical Baselines
 
 - [ ] **BASE-01**: Tolles-Lawson ridge regression (permanent + induced + eddy terms from the fluxgate vector, optional `cur_*` columns, 0.1–0.9 Hz bandpass) fitted on calibration line 1006.08 compensates one cabin magnetometer toward the stinger reference (`mag_1_c`) and serves as the primary classical baseline
 - [ ] **BASE-02**: An equal-feature classical learner (RBF kernel ridge) trained on the TL residual with exactly the features and train/test split the quantum model uses serves as the fair comparison partner
-- [ ] **BASE-03**: A naive low-pass filter on the cabin magnetometer is reported as the floor
+- [x] **BASE-03**: A naive low-pass filter on the cabin magnetometer is reported as the floor
 - [ ] **BASE-04**: Models are trained on calibration line 1006.08 and evaluated only on held-out lines 1003.02 and 1007.06; denoisers predict `mag_1_c`, and the map-matching leg uses the `mag_1_igrf`-equivalent (IGRF + diurnal removed) cleaned signal
 
 ### Quantum Denoiser
@@ -41,13 +41,13 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Navigation
 
-- [ ] **NAV-01**: Windowed-correlation (TERCOM-style) matching slides each cleaned-signal window over the Eastern_395 / Renfrew_395 map within a search region centred on the simulated INS-drift prior, picks the best-correlating offset, never matches through invalid (k-NN-filled) cells, and estimates position from `Sensors` and the map only
+- [x] **NAV-01**: Windowed-correlation (TERCOM-style) matching slides each cleaned-signal window over the Eastern_395 / Renfrew_395 map within a search region centred on the simulated INS-drift prior, picks the best-correlating offset, never matches through invalid (k-NN-filled) cells, and estimates position from `Sensors` and the map only
 - [ ] **NAV-02**: The matcher is run once per denoiser output (raw cabin, low-pass, TL, classical KRR, quantum) on identical held-out lines and segments so position error can be compared across denoisers
-- [ ] **NAV-03**: A "GPS jammed at t=X" event switches estimation to magnetic-only after that point, so the demo shows drift without MagNav and hold with it
+- [x] **NAV-03**: A "GPS jammed at t=X" event switches estimation to magnetic-only after that point, so the demo shows drift without MagNav and hold with it
 
 ### Metrics & Benchmarks
 
-- [ ] **METR-01**: Per denoiser, the pipeline reports signal RMSE and error std (nT), mean and final position error (m), CEP50/CEP95, and % time under an RNP-style threshold
+- [x] **METR-01**: Per denoiser, the pipeline reports signal RMSE and error std (nT), mean and final position error (m), CEP50/CEP95, and % time under an RNP-style threshold
 - [ ] **METR-02**: Results are reported over N contiguous segments of held-out lines 1003.02 and 1007.06 (N = 5–10) as mean ± std in a benchmark table that includes a negative-results section stating plainly where the quantum model ties or loses and why
 - [ ] **METR-03**: A nT-to-metres curve (position error vs cleaned-signal RMSE) places each denoiser and each cabin sensor on the curve
 - [ ] **METR-04**: A training-set-size sweep (e.g. 20/50/100/200 windows subsampled from 1006.08) compares quantum vs classical KRR to identify any regime where quantum helps
@@ -135,14 +135,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAT-03 | Phase 1 | Complete |
 | PLAT-04 | Phase 1 | Complete |
 | PLAT-05 | Phase 1 | Complete |
-| DATA-01 | Phase 2 | Pending |
-| DATA-02 | Phase 2 | Pending |
-| DATA-03 | Phase 2 | Pending |
-| DATA-04 | Phase 2 | Pending |
-| DATA-05 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Complete |
+| DATA-02 | Phase 2 | Complete |
+| DATA-03 | Phase 2 | Complete |
+| DATA-04 | Phase 2 | Complete |
+| DATA-05 | Phase 2 | Complete |
 | BASE-01 | Phase 2 | Pending |
 | BASE-02 | Phase 2 | Pending |
-| BASE-03 | Phase 2 | Pending |
+| BASE-03 | Phase 2 | Complete |
 | BASE-04 | Phase 2 | Pending |
 | QNT-01 | Phase 4 | Pending |
 | QNT-02 | Phase 4 | Pending |
@@ -150,10 +150,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QNT-04 | Phase 4 | Pending |
 | QNT-05 | Phase 4 | Pending |
 | QNT-06 | Phase 4 | Pending |
-| NAV-01 | Phase 2 | Pending |
+| NAV-01 | Phase 2 | Complete |
 | NAV-02 | Phase 2 | Pending |
-| NAV-03 | Phase 2 | Pending |
-| METR-01 | Phase 2 | Pending |
+| NAV-03 | Phase 2 | Complete |
+| METR-01 | Phase 2 | Complete |
 | METR-02 | Phase 5 | Pending |
 | METR-03 | Phase 5 | Pending |
 | METR-04 | Phase 5 | Pending |

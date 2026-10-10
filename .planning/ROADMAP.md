@@ -88,7 +88,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — preprocess_sgl.py excerpts + provenance (<2 MB, byte-identical), Truth/Sensors loader, INS drift, gated recursive-prior TERCOM, metrics, thin `python main.py` (DR/raw/low-pass, both sensors)
+- [x] 02-01-PLAN.md — preprocess_sgl.py excerpts + provenance (<2 MB, byte-identical), Truth/Sensors loader, INS drift, gated recursive-prior TERCOM, metrics, thin `python main.py` (DR/raw/low-pass, both sensors)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

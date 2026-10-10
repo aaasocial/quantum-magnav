@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-10T09:02:21.974Z"
+last_updated: "2026-10-10T09:10:40.811Z"
 last_activity: 2026-10-10 -- Phase 2 planning complete
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 17
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 2 of 6 (real flight data and classical pipeline)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-10 -- Phase 2 planning complete
+Plan: 2 of 3 (02-01 complete)
+Status: Executing Phase 2
+Last activity: 2026-10-10 -- Completed 02-01 (real excerpts, DR, TERCOM, thin metrics)
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 67%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -57,6 +57,7 @@ Progress: [██████████] 100%
 | Phase 01 P01 | 6 min | 2 tasks | 13 files |
 | Phase 01 P02 | 5 min | 2 tasks | 13 files |
 | Phase 01 P03 | 45 min | 2 tasks | 6 files |
+| Phase 02 P01 | 10 min | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 01]: Vite build.target esnext required for main.jsx top-level await keep-alive
 - [Phase 01]: [01-03]: Qollab IonQ proxy accepts only job type ionq.circuit.v1 - every IonQ job holds exactly 1 circuit and 1 job per Run (supersedes 'one batched backend.run'); Phase 4 packs all windows into one circuit (disjoint qubit blocks on 29q Forte 1 sim) or runs bulk on built-in sim/Aer forte-1 noise
 - [Phase 01]: [01-03]: Submission format = Qollab JS project; shots <= 4096 (verified), ~12 s per Forte 1 job; sklearn not preloaded (add to requirements.txt or use numpy); platform qiskit-ionq 1.0.2
+- [Phase 02]: [02-01]: TERCOM output median uses the last 3 raw estimates propagated to the current window end by DR increments (output-only)
+- [Phase 02]: [02-01]: Thin run: raw/lowpass drift on both lines; DR mean 1091/1112 m; truth-signal TERCOM holds at ~70-80 m
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T08:05:37.138Z
+Last session: 2026-10-10T09:10:35.864Z
 Stopped at: Completed 01-03-PLAN.md
 Resume file: None
