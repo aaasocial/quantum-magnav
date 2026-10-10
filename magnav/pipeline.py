@@ -9,7 +9,7 @@ import dataclasses
 
 import numpy as np
 
-from magnav.classical import build_denoisers
+from magnav.classical import FLUXGATE, TL_BAND_HZ, TL_TERMS, build_denoisers
 from magnav.data import (
     FLT1003_LINE02,
     FLT1006_LINE08,
@@ -63,6 +63,17 @@ def run_pipeline(sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, s
     fitted = {}
     for mag_key in sensors:
         fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in build_denoisers(mag_key).items()}
+    tl_config = {}
+    for mag_key in sensors:
+        tl, tlc = fitted[mag_key]["tl"], fitted[mag_key]["tl_currents"]
+        tl_config[mag_key] = {
+            "fluxgate": FLUXGATE,
+            "terms": TL_TERMS,
+            "band_hz": list(TL_BAND_HZ),
+            "lambda": tl.lam,
+            "cal_line": CAL_LINE,
+            "tl_currents": {"currents": list(tlc.current_names), "lambda": tlc.lam},
+        }
 
     window = TERCOM_PARAMS["window"]
     out_lines: dict = {}
@@ -144,6 +155,7 @@ def run_pipeline(sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, s
         "thresholds_m": list(THRESHOLDS_M),
         "tercom": dict(TERCOM_PARAMS, prior="recursive_ins_propagated"),
         "dr": dict(DR_PARAMS, seed=int(seed), bias_signs=bias_signs),
+        "tl": tl_config,
         "truncate": truncate,
     }
     return {"config": config, "lines": out_lines, "metrics_table": rows}
