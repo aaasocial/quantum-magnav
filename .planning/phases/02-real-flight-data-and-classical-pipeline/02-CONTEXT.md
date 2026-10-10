@@ -40,6 +40,10 @@ Platform constraints inherited from Phase 1 (see docs/QOLLAB_FINDINGS.md): Qolla
 - D-15: Position estimate = best-correlation offset, smoothed with a 3-window median.
 - D-16: RunArtifact v1 = columnar JSON with `t`, truth xy, dead-reckoning xy, per-denoiser estimated xy and cleaned signal (downsampled to <= 2000 points per series), the metrics table, provenance (source files, line, tt range, decimation, seed), and `schema_version: 1`; written to `data/precomputed_run.json` under 2 MB.
 
+### Post-research amendments (D-17..D-18, accepted by the builder 2026-10-10 after 02-RESEARCH.md)
+- D-17: The pipeline runs BOTH cabin sensors, Mag 4 (`mag_4_uc`) and Mag 5 (`mag_5_uc`), through every denoiser and the navigator; the artifact and metrics table carry both; the default demo sensor is Mag 5 (reliable hold) and Mag 4 is the "hard case" where denoiser differences are compared. D-02 is superseded accordingly (Mag 4 is no longer the single primary).
+- D-18: The navigator (a) skips fixes whose normalized correlation is below 0.85 and coasts on the INS estimate instead, and (b) centres the 3 km search box on the last accepted fix plus INS movement since then, not on raw dead reckoning. D-14/D-15 are amended accordingly.
+
 ### Claude's Discretion
 Everything not listed above: module layout inside `magnav/` (e.g. `magnav.data`, `magnav.classical`, `magnav.nav`, `magnav.metrics`, `magnav.artifact`), exact ridge/KRR hyperparameter search, figure styling in `main.py`, test structure, and whether KRR is scikit-learn (with `scikit-learn` added to requirements.txt) or a numpy implementation.
 
