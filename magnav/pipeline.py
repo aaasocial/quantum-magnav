@@ -103,7 +103,7 @@ def run_pipeline(sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, s
                 row.update(signal_metrics(cleaned, truth.mag_1_c, start))
                 row.update(position_metrics(ex, ey, tx, ty, start))
                 row["accepted"] = int(nav.accepted.sum())
-                row["windows"] = int(len(nav.window_end))
+                row["windows"] = len(nav.window_end)
                 rows.append(row)
                 results[mag_key][name] = {
                     "cleaned": cleaned,
