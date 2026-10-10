@@ -7,7 +7,14 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MAGNAV = ROOT / "magnav"
-GUARDED = [MAGNAV / n for n in ("classical.py", "nav.py", "frames.py", "quantum.py", "quantum_slot.py")]
+REQUIRED = [MAGNAV / n for n in ("classical.py", "nav.py", "frames.py", "quantum.py")]
+OPTIONAL = [MAGNAV / n for n in ("quantum_slot.py",)]
+GUARDED = REQUIRED + [p for p in OPTIONAL if p.exists()]
+
+
+def test_guarded_modules_exist():
+    missing = [p.name for p in REQUIRED if not p.exists()]
+    assert not missing, f"guarded modules missing: {missing}"
 
 
 def _names_in(node) -> set[str]:
@@ -24,7 +31,7 @@ def _names_in(node) -> set[str]:
     return out
 
 
-@pytest.mark.parametrize("path", [p for p in GUARDED if p.exists()], ids=lambda p: p.name)
+@pytest.mark.parametrize("path", GUARDED, ids=lambda p: p.name)
 def test_truth_guard(path):
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
