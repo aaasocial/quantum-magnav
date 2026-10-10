@@ -17,7 +17,7 @@ if "backend" not in globals():  # local only; on Qollab `backend` is injected
 from magnav.metrics import format_metrics_table
 from magnav.pipeline import run_pipeline
 
-result = run_pipeline()
+result = run_pipeline(backend=backend)
 cfg = result["config"]
 print("Quantum MagNav - classical pipeline on SGL 2020 (calibration line 1006.08)")
 print(

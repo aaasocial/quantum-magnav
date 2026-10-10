@@ -9,7 +9,13 @@ import dataclasses
 
 import numpy as np
 
-from magnav.classical import FLUXGATE, TL_BAND_HZ, TL_TERMS, build_denoisers
+from magnav.classical import (
+    FLUXGATE,
+    KRR_FEATURES,
+    TL_BAND_HZ,
+    TL_TERMS,
+    build_denoisers,
+)
 from magnav.data import (
     FLT1003_LINE02,
     FLT1006_LINE08,
@@ -56,15 +62,27 @@ def _truncate(obj, n: int):
     return dataclasses.replace(obj, **changes)
 
 
-def run_pipeline(sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, seed=SEED) -> dict:
+def run_pipeline(
+    backend=None, sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, seed=SEED
+) -> dict:
+    """backend: injected device for the quantum slot (the stub never submits a job)."""
     cal_sensors, cal_truth = load_line(FLT1006_LINE08)
     cal_target = cal_truth.mag_1_c  # bare array: the only truth a denoiser ever sees
 
     fitted = {}
     for mag_key in sensors:
-        fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in build_denoisers(mag_key).items()}
-    tl_config = {}
+        fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in build_denoisers(mag_key, backend).items()}
+    tl_config, krr_config, quantum_config = {}, {}, {}
     for mag_key in sensors:
+        krr = fitted[mag_key]["krr"].model
+        krr_config[mag_key] = {
+            "gamma": krr.gamma,
+            "lambda": krr.lam,
+            "n_train": krr.n_train,
+            "features": KRR_FEATURES,
+            "target": "bandpassed TL residual on " + CAL_LINE,
+        }
+        quantum_config[mag_key] = fitted[mag_key]["quantum"].model.provenance
         tl, tlc = fitted[mag_key]["tl"], fitted[mag_key]["tl_currents"]
         tl_config[mag_key] = {
             "fluxgate": FLUXGATE,
@@ -156,6 +174,8 @@ def run_pipeline(sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, s
         "tercom": dict(TERCOM_PARAMS, prior="recursive_ins_propagated"),
         "dr": dict(DR_PARAMS, seed=int(seed), bias_signs=bias_signs),
         "tl": tl_config,
+        "krr": krr_config,
+        "quantum": quantum_config,
         "truncate": truncate,
     }
     return {"config": config, "lines": out_lines, "metrics_table": rows}

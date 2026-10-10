@@ -11,6 +11,7 @@ import numpy as np
 from scipy import signal
 
 from magnav.data import Sensors
+from magnav.quantum import QuantumDenoiser
 
 
 class RawDenoiser:
@@ -166,11 +167,131 @@ class TLDenoiser:
         return mag - self._A(sensors) @ self.coef - self.bias
 
 
-def build_denoisers(mag_key: str) -> dict:
-    """Ordered denoiser set for one cabin sensor."""
+# ---------------------------------------------------------------------------
+# Equal-feature RBF kernel ridge on the TL residual (BASE-02, D-11)
+# ---------------------------------------------------------------------------
+
+KRR_CURRENTS = ("cur_outpwr", "cur_acpwr", "cur_heat", "cur_ac_hi")
+KRR_FEATURES = 22
+KRR_GAMMA_FACTORS = (0.25, 1.0, 4.0)
+KRR_LAMBDA_GRID = (1e-2, 1e-1, 1.0, 10.0)
+KRR_CHUNK = 1000
+
+
+def kernel_features(sensors: Sensors, fluxgate: str = FLUXGATE, current_names=KRR_CURRENTS) -> np.ndarray:
+    """Per-sample (n, 22) features shared by KRR and the quantum slot.
+
+    Columns 0-8: the 3 permanent + 6 induced TL direction-cosine terms; 9-17: their fdm
+    derivatives; 18-21: the D-10 currents. No history window. Phase 4's quantum feature
+    map consumes exactly this function.
+    """
+    f = sensors.flux
+    A9 = tl_A(f[f"{fluxgate}_x"], f[f"{fluxgate}_y"], f[f"{fluxgate}_z"])[:, :9]
+    dA9 = np.column_stack([fdm(A9[:, j]) for j in range(9)])
+    cur = np.column_stack([np.asarray(sensors.cur[c], dtype=np.float64) for c in current_names])
+    return np.hstack([A9, dA9, cur])
+
+
+def _sqdist(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    d2 = (a * a).sum(1)[:, None] + (b * b).sum(1)[None, :] - 2.0 * a @ b.T
+    return np.maximum(d2, 0.0)
+
+
+def rbf(a: np.ndarray, b: np.ndarray, gamma: float) -> np.ndarray:
+    return np.exp(-gamma * _sqdist(a, b))
+
+
+def krr_fit(Z: np.ndarray, y: np.ndarray, gamma: float, lam: float) -> np.ndarray:
+    return np.linalg.solve(rbf(Z, Z, gamma) + lam * np.eye(len(Z)), y)
+
+
+def krr_predict(Zt: np.ndarray, Z: np.ndarray, alpha: np.ndarray, gamma: float, chunk: int = KRR_CHUNK) -> np.ndarray:
+    """Row-chunked prediction so the held-out kernel never exceeds chunk x n_train."""
+    if len(Zt) == 0:
+        return np.zeros(0)
+    return np.concatenate([rbf(Zt[i : i + chunk], Z, gamma) @ alpha for i in range(0, len(Zt), chunk)])
+
+
+class KRRResidual:
+    """RBF kernel ridge residual model: fit(features, residual), predict(features) in nT.
+
+    gamma (median heuristic x {0.25, 1, 4}) and lambda are chosen by a blocked 70/30 split
+    of the training (calibration) rows only, then refitted on all of them.
+    """
+
+    name = "krr"
+
+    def __init__(self, n_train_stride: int = 1):
+        self.n_train_stride = int(n_train_stride)
+        self.n_train = None
+        self.gamma = None
+        self.lam = None
+        self.mu = None
+        self.sd = None
+        self._Z = None
+        self._alpha = None
+
+    def _standardise(self, features) -> np.ndarray:
+        return (np.asarray(features, dtype=np.float64) - self.mu) / self.sd
+
+    def fit(self, features, residual):
+        F = np.asarray(features, dtype=np.float64)
+        y_all = np.asarray(residual, dtype=np.float64)
+        self.mu = F.mean(axis=0)
+        sd = F.std(axis=0)
+        self.sd = np.where(sd > _EPS, sd, 1.0)
+        Z = self._standardise(F)[:: self.n_train_stride]
+        y = y_all[:: self.n_train_stride]
+        self.n_train = len(Z)
+        med = float(np.median(_sqdist(Z, Z)[np.triu_indices(len(Z), k=1)]))  # median heuristic
+        g0 = 1.0 / med if med > _EPS else 1.0
+        k = int(0.7 * len(Z))
+        best, best_err = None, np.inf
+        for gf in KRR_GAMMA_FACTORS:
+            for lam in KRR_LAMBDA_GRID:
+                g = g0 * gf
+                a = krr_fit(Z[:k], y[:k], g, lam)
+                err = float(np.std(y[k:] - krr_predict(Z[k:], Z[:k], a, g)))
+                if err < best_err:
+                    best, best_err = (g, float(lam)), err
+        self.gamma, self.lam = best
+        self._Z = Z
+        self._alpha = krr_fit(Z, y, self.gamma, self.lam)
+        return self
+
+    def predict(self, features) -> np.ndarray:
+        return krr_predict(self._standardise(features), self._Z, self._alpha, self.gamma)
+
+
+class ResidualCorrected:
+    """Denoiser = base denoiser minus a residual model on kernel_features.
+
+    The residual model (KRRResidual or QuantumDenoiser) is trained on the 0.1-0.9 Hz
+    bandpassed calibration residual of the base denoiser.
+    """
+
+    def __init__(self, base, model, name: str):
+        self.base = base
+        self.model = model
+        self.name = name
+
+    def fit(self, cal: Sensors, target: np.ndarray):
+        self.base.fit(cal, target)
+        r = self.base.predict(cal) - np.asarray(target, dtype=np.float64)
+        self.model.fit(kernel_features(cal), bpf(r, cal.fs))
+        return self
+
+    def predict(self, sensors: Sensors) -> np.ndarray:
+        return self.base.predict(sensors) - self.model.predict(kernel_features(sensors))
+
+
+def build_denoisers(mag_key: str, backend=None) -> dict:
+    """Ordered denoiser set for one cabin sensor (NAV-02: all share one navigator)."""
     return {
         "raw": RawDenoiser(mag_key),
         "lowpass": LowPassDenoiser(mag_key),
         "tl": TLDenoiser(mag_key),
         "tl_currents": TLDenoiser(mag_key, n_currents=4),
+        "krr": ResidualCorrected(TLDenoiser(mag_key), KRRResidual(), "krr"),
+        "quantum": ResidualCorrected(TLDenoiser(mag_key), QuantumDenoiser(backend), "quantum"),
     }
