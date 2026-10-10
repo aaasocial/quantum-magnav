@@ -30,7 +30,7 @@ The research SUMMARY proposed 7 phases. Under the "coarse" granularity setting, 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Scaffold, Compliance and Qollab Smoke Test** - Prove the Qollab runtime end to end and commit every compliance artifact (~3 h)
+- [x] **Phase 1: Scaffold, Compliance and Qollab Smoke Test** - Prove the Qollab runtime end to end and commit every compliance artifact (~3 h) (completed 2026-10-10)
 - [ ] **Phase 2: Real Flight Data and Classical Pipeline** - Preprocess SGL 2020 lines and Ottawa maps into <2 MB excerpts, Truth/Sensors split, simulated INS drift, Tolles-Lawson and KRR baselines, windowed-correlation nav, metrics and the precomputed artifact (~8 h)
 - [ ] **Phase 3: Frontend Vertical Slice** - Accessible React player showing the drone hold position after GPS jamming, with in-page compute and precomputed fallback (~5 h)
 - [ ] **Phase 4: Quantum Denoiser and IonQ Runs** - Replace the quantum stub with the feature-map denoiser, one batched IonQ Forte 1 job, and the early hardware capture (~9 h)
@@ -66,7 +66,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Packaging zips, findings template with prepared repo commands, human Qollab checkpoint (public repo, IonQ Forte 1 run, 32/64/128 probe, publish, logged-out, credits)
+- [x] 01-03-PLAN.md — Packaging zips, findings template with prepared repo commands, human Qollab checkpoint (public repo, IonQ Forte 1 run, 32/64/128 probe, publish, logged-out, credits)
 
 ### Phase 2: Real Flight Data and Classical Pipeline
 

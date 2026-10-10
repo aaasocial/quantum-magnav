@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-10-10T06:53:52.356Z"
+status: verifying
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-10-10T08:07:55.225Z"
 last_activity: 2026-10-10
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 17
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 
 Phase: 1 of 6 (Scaffold, Compliance and Qollab Smoke Test)
 Plan: 3 of 3 in current phase
-Status: Ready to execute
-Last activity: 2026-10-10 - Completed quick task 261010-0kt: replace synthetic world with SGL flight data and Ottawa maps in planning docs
+Status: Phase complete — ready for verification
+Last activity: 2026-10-10 - Completed 01-03 (Qollab smoke test, findings, public repo, v0.1-smoke published)
 
-Progress: [███████░░░] 67%
+Progress: [██████████] 100%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -56,6 +56,7 @@ Progress: [███████░░░] 67%
 *Updated after each plan completion*
 | Phase 01 P01 | 6 min | 2 tasks | 13 files |
 | Phase 01 P02 | 5 min | 2 tasks | 13 files |
+| Phase 01 P03 | 45 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-01]: Node lives at ~/.local/node/bin and is not on the default PATH; Plan 02 must prepend it
 - [Phase 01]: IonQ lock set before run_bell_batch is awaited, with a synchronous ref guard, so no second IonQ job is possible
 - [Phase 01]: Vite build.target esnext required for main.jsx top-level await keep-alive
+- [Phase 01]: [01-03]: Qollab IonQ proxy accepts only job type ionq.circuit.v1 - every IonQ job holds exactly 1 circuit and 1 job per Run (supersedes 'one batched backend.run'); Phase 4 packs all windows into one circuit (disjoint qubit blocks on 29q Forte 1 sim) or runs bulk on built-in sim/Aer forte-1 noise
+- [Phase 01]: [01-03]: Submission format = Qollab JS project; shots <= 4096 (verified), ~12 s per Forte 1 job; sklearn not preloaded (add to requirements.txt or use numpy); platform qiskit-ionq 1.0.2
 
 ### Pending Todos
 
@@ -79,12 +82,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- React bundle has not yet run inside the Qollab sandbox (Phase 1 smoke test resolves; fallback is `main.py` Python-project submission)
-- Max circuits/gates per IonQ Forte 1 job undocumented (probe 32/64/128 in Phase 1)
-- Hardware credits for the QPU run unconfirmed (ask in #hackathon-help on Day 1; proxy fallback is the labeled `forte-1` noise model)
 - Windowed-correlation (TERCOM-style) navigation is now the default; the particle filter is an optional stretch, and if built its Pyodide performance is untested (keep particle counts moderate; precompute is the default)
 - Raw data verified 2026-10-10: Flt1003/1006/1007_train.h5 (123/83/88 MB, sizes match Zenodo) and ottawa_area_maps Eastern_395/Renfrew_395/Perth_800/HighAlt_5181.h5 open with h5py in `data_raw/`; lines 1003.02 (63 min), 1006.08 (14 min), 1007.06 (87 min) present. Maps are ~30 m grids (Eastern 6238x4881, Renfrew 3331x3841), so Phase 2 must crop to the line bounding box and downsample to stay under 2 MB
 - Map coverage: line bounding boxes fall inside the Eastern_395 (1003.02, 1006.08) and Renfrew_395 (1007.06) extents; still confirm in Phase 2 preprocessing that they lie in the valid (non-k-NN-filled) mask area (Eastern mask 46% valid, Renfrew 56%)
+- Incognito (logged-out) Run test of https://qollab.xyz/u/eehhaa/quantum-magnav pending from builder; PLAT-02 stays Pending until done
+- Slack #hackathon-help credits question pending (extra credits? cost of ~500-shot Forte 1 hardware run); 100 credits on profile; decides QNT-06
+- Phase 4 must use exactly one circuit per IonQ job (multi-circuit jobs rejected with HTTP 400)
+- Qollab has no 'Quantum Impact' tag; theme-tag mechanism for submission unknown
 
 ### Quick Tasks Completed
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T06:53:52.346Z
+Last session: 2026-10-10T08:05:37.138Z
 Stopped at: Completed 01-02-PLAN.md
 Resume file: None
