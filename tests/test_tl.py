@@ -116,6 +116,21 @@ def test_tl_currents_columns(lines):
     assert len(tlc.coef) == 22
 
 
+def test_tl_currents_contribution_bandpassed(lines):
+    """WR-07: the current regressors' contribution is applied in the TL band, so a DC step
+    in a current channel at apply time does not shift the compensated output."""
+    import dataclasses
+
+    (cal_s, cal_t), held = lines
+    tlc = TLDenoiser("mag_4_uc", n_currents=4).fit(cal_s, cal_t.mag_1_c)
+    s = held["1003.02"][0]
+    base = tlc.predict(s)
+    cur = dict(s.cur)
+    cur[tlc.current_names[0]] = cur[tlc.current_names[0]] + 5.0  # constant offset: out of band
+    shifted = tlc.predict(dataclasses.replace(s, cur=cur))
+    assert np.max(np.abs(shifted - base)) < 1e-6 * max(1.0, np.max(np.abs(tlc.coef)))
+
+
 # ---------------------------------------------------------------------------
 # D-19: calibration-only fluxgate / lambda selection
 # ---------------------------------------------------------------------------

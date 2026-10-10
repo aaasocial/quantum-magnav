@@ -139,6 +139,19 @@ def _tl_design(cal: Sensors, fluxgate: str, current_names=()) -> np.ndarray:
     return A
 
 
+def _compensate(mag: np.ndarray, A: np.ndarray, coef: np.ndarray, fs: float) -> np.ndarray:
+    """mag minus the TL contribution (full band) minus the current contribution, bandpassed.
+
+    Columns beyond TL_TERMS are current regressors. They are fitted in the TL band, so
+    their contribution is applied in the same band (RESEARCH Pitfall 5): steps and DC
+    shifts in the currents, outside the band the fit constrains, are not subtracted.
+    """
+    comp = mag - A[:, :TL_TERMS] @ coef[:TL_TERMS]
+    if A.shape[1] > TL_TERMS:
+        comp = comp - bpf(A[:, TL_TERMS:] @ coef[TL_TERMS:], fs)
+    return comp
+
+
 def _segments(mask: np.ndarray) -> list:
     """Contiguous True runs of a boolean mask as (start, stop) pairs."""
     idx = np.flatnonzero(np.diff(np.concatenate([[0], mask.astype(np.int8), [0]])))
@@ -165,7 +178,7 @@ def _cv_scores(A: np.ndarray, mag: np.ndarray, target: np.ndarray, fs: float, gr
         train = ~test
         for lam in grid:
             coef = ridge(A_f / sd, y_f, lam) / sd
-            comp = mag - A @ coef
+            comp = _compensate(mag, A, coef, fs)
             bias = float(np.mean(comp[train] - target[train]))
             err = comp[test] - bias - target[test]
             sq[float(lam)] += float(np.sum(err * err))
@@ -213,7 +226,8 @@ class TLDenoiser:
     """Tolles-Lawson compensation of one cabin magnetometer from one fluxgate (BASE-01).
 
     With n_currents > 0 the n largest-std current channels of the calibration line are
-    appended as extra regressors (D-10, "tl_currents"). With lam=None the ridge lambda is
+    appended as extra regressors (D-10, "tl_currents"); their contribution is bandpassed
+    to the TL band at fit and apply time (see _compensate). With lam=None the ridge lambda is
     chosen at fit time by the D-19 blocked CV on the calibration arrays (fluxgate fixed).
     """
 
@@ -248,12 +262,13 @@ class TLDenoiser:
             self.lam = self.lam_fixed
         sd = _col_scale(A_f)
         self.coef = ridge(A_f / sd, y_f, self.lam) / sd
-        self.bias = float(np.mean((mag - A @ self.coef) - np.asarray(target, dtype=np.float64)))
+        comp = _compensate(mag, A, self.coef, cal.fs)
+        self.bias = float(np.mean(comp - np.asarray(target, dtype=np.float64)))
         return self
 
     def predict(self, sensors: Sensors) -> np.ndarray:
         mag = np.asarray(sensors.mag[self.mag_key], dtype=np.float64)
-        return mag - self._A(sensors) @ self.coef - self.bias
+        return _compensate(mag, self._A(sensors), self.coef, sensors.fs) - self.bias
 
 
 # ---------------------------------------------------------------------------
