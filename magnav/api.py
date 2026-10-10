@@ -156,3 +156,99 @@ def run_bell_batch(backend, n_circuits=2, shots=200) -> str:
         )
     except Exception as e:  # noqa: BLE001 - surface IonQ CamelCase error names to the page
         return _failure(backend, n, s, type(e).__name__, str(e))
+
+
+# ---------- Phase 3: precomputed artifact and chunked live run (D-13..D-16) ----------
+# None of these touch the injected backend: backend.run is never called (D-16).
+
+
+def artifact_json(backend) -> str:
+    """Precomputed RunArtifact as JSON text. Never raises; no re-serialisation (1 MB)."""
+    try:
+        from magnav.artifact import ARTIFACT_PATH  # literal "data/precomputed_run.json"
+
+        with open(ARTIFACT_PATH, encoding="utf-8") as f:
+            text = f.read()
+        return '{"ok":true,"artifact":' + text.strip() + "}"
+    except Exception as e:  # noqa: BLE001
+        return json.dumps({"ok": False, "error_type": type(e).__name__, "error": str(e)[:2000]})
+
+
+def _live_failure(stage, exc_type_name, message) -> str:
+    """Live-API failure JSON. Never raises."""
+    return json.dumps(
+        {
+            "ok": False,
+            "stage": stage if type(stage) is int else None,
+            "error_type": str(exc_type_name),
+            "error": str(message)[:2000],
+        }
+    )
+
+
+def _live_ok(payload: dict) -> str:
+    return json.dumps(payload, allow_nan=False, separators=(",", ":"))
+
+
+def _live_stage():
+    try:
+        from magnav import live
+
+        return live.current_stage()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def live_start(backend, line, sensor, simulate_failure=False) -> str:
+    """Stage 1 of a live run of one held-out line x one sensor."""
+    try:
+        from magnav import live
+
+        return _live_ok(live.start(str(line), str(sensor), bool(simulate_failure)))
+    except Exception as e:  # noqa: BLE001
+        return _live_failure(1, type(e).__name__, e)
+
+
+def live_step(backend, budget_ms=250) -> str:
+    """One bounded chunk (stage 2: one fit per call; stage 3: ~budget_ms of TERCOM)."""
+    try:
+        budget = max(50, min(2000, _as_int(budget_ms)))
+    except Exception as e:  # noqa: BLE001
+        return _live_failure(_live_stage(), "ValueError", f"budget_ms: {type(e).__name__}: {e}")
+    try:
+        from magnav import live
+
+        return _live_ok(live.step(budget))
+    except Exception as e:  # noqa: BLE001
+        return _live_failure(_live_stage(), type(e).__name__, e)
+
+
+def live_skip(backend, denoiser) -> str:
+    """Skip raw or lowpass before it finishes (tl is never skippable)."""
+    try:
+        from magnav import live
+
+        return _live_ok(live.skip(str(denoiser)))
+    except Exception as e:  # noqa: BLE001
+        return _live_failure(_live_stage(), type(e).__name__, e)
+
+
+def live_result(backend) -> str:
+    """The finished run as one artifact lines[i] entry restricted to the chosen sensor."""
+    try:
+        from magnav import live
+
+        return _live_ok(live.result())
+    except Exception as e:  # noqa: BLE001
+        return _live_failure(4 if _live_stage() is not None else None, type(e).__name__, e)
+
+
+def live_cancel(backend) -> str:
+    """Discard any live run in progress. Always ok."""
+    try:
+        from magnav import live
+
+        live.cancel()
+    except Exception:  # noqa: BLE001, S110 - cancel must always report ok
+        pass
+    return '{"ok":true}'
