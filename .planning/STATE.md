@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-10T17:15:55.904Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-10-10T17:38:13.216Z"
 last_activity: 2026-10-10
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 9
-  percent: 33
+  completed_plans: 10
+  percent: 50
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-09)
 
 **Core value:** Judges see a drone icon on a map hold its position without GPS because magnetic noise was removed, and see the quantum-assisted denoiser beat (or honestly match) a classical baseline on the same data.
-**Current focus:** Phase 3 — frontend vertical slice
+**Current focus:** Phase 4 — quantum denoiser and IonQ runs (Phase 3 complete)
 
 ## Current Position
 
 Phase: 3 of 6 (frontend vertical slice)
-Plan: 3 of 4 complete (03-01 Python live API); next 03-02
-Status: Ready to execute
+Plan: 4 of 4 complete (Phase 3 done: 03-04 signal panel, live run with fallback, Qollab editor check); next Phase 4
+Status: Phase 3 complete; ready to plan Phase 4
 Last activity: 2026-10-10
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -64,6 +64,7 @@ Progress: [█████████░] 90%
 | Phase 03 P01 | 7 min | 2 tasks | 7 files |
 | Phase 03 P02 | 12 min | 2 tasks | 22 files |
 | Phase 03 P03 | 9 min | 3 tasks | 15 files |
+| Phase 03 P04 | 35 min | 4 tasks | 26 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: app.css has a MapView section using UI-SPEC tokens only; the Plan 03 theme rewrite must keep it
 - [Phase 03]: 03-03: announce throttle has mark(); Play and jam announcements restart the 10 s readout interval so the readout never clobbers them
 - [Phase 03]: 03-03: keep-alive treats playing / live-in-flight as activity; runDone resolves only on End run or 30 min idle (never on missing backend)
+- [Phase 03]: 03-04: chunked live mode validated on Qollab: 31.6 ms/window in Pyodide (2.7x CPython); 1003.02 live run 28.8 s, 1007.06 projected ~40 s, inside the 90 s deadline
+- [Phase 03]: 03-04: on Qollab Python runs on the page main thread and the injected setTimeout returns a promise; keep Python calls short and schedule with rAF/MessageChannel/performance.now
 
 ### Pending Todos
 
@@ -109,6 +112,8 @@ None yet.
 - Phase 4 must use exactly one circuit per IonQ job (multi-circuit jobs rejected with HTTP 400)
 - Qollab has no 'Quantum Impact' tag; theme-tag mechanism for submission unknown
 - Mag 5 TL does not hold on 1007.06 (26.9% under 556 m) with flux_a/cal-split lambda; user must choose TL config (A plan / B flux_d / C MagNav lambda 0.025) at the Plan 03 checkpoint - see 02-02-SUMMARY
+- Qollab preview iframe is a fixed 520 px tall vs 1797 px content: judges see only header + control bar without scrolling/Fullscreen; Phase 5 compact map-first layout + README How-to-run note
+- Phase 3 player uploaded to the Qollab editor but NOT published (visitors see v0.1.1-smoke); publishing needs builder's explicit approval
 
 ### Quick Tasks Completed
 
@@ -125,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T17:15:51.567Z
-Stopped at: Completed 01-03-PLAN.md
+Last session: 2026-10-10T17:38:06.921Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
