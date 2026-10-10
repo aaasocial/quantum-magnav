@@ -9,7 +9,8 @@ main thread):
   start()  stage 1: allowlist check, load calibration + held-out line, jam, DR.
   step()   stage 2: first call runs select_tl_config + build_denoisers only ("select"),
            each later call fits exactly ONE denoiser of LIVE_FIT and computes its signal.
-           stage 3: advances one TERCOM generator per LIVE_ORDER entry for ~budget_ms.
+           stage 3: advances one TERCOM generator per LIVE_ORDER entry for ~budget_ms; a call
+           ends early when a denoiser finishes, so it never starts a second one.
   result() assembles one artifact lines[i] entry with the pipeline's own helpers, so the
            numbers equal the precomputed artifact's by construction.
 Module state persists between calls; one run at a time (a new start discards the old one).
@@ -147,6 +148,9 @@ def _advance(st, deadline):
             st["progress"][name] = len(stop.value.window_end)
             del st["gens"][name]
             st["current"] += 1
+            # Hand control back to JS at every denoiser boundary: the next denoiser has not
+            # started yet, so JS can still decide to skip it for time (CR-01).
+            break
         if time.perf_counter() >= deadline:
             break
     if st["current"] >= len(st["run_order"]):

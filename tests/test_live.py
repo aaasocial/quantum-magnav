@@ -225,3 +225,32 @@ def test_live_source_never_calls_backend_run():
         if isinstance(node, ast.Attribute) and node.attr == "run":
             base = ast.unparse(node.value)
             assert "backend" not in base.lower(), f"live.py:{node.lineno} {base}.run"
+
+
+def test_step_never_starts_a_second_denoiser():
+    """CR-01: a stage-3 call stops at the denoiser boundary, so JS sees each one finished with
+    the next one still at 0 windows and can skip it for time."""
+    assert _strict(api.live_start(None, LINE, SENSOR))["ok"] is True
+    prev = None
+    finished_seen = {}
+    while True:
+        p = _strict(api.live_step(None, 2000))  # a large budget would spill over without the break
+        assert p["ok"] is True, p
+        if p["stage"] == 3:
+            per = p["per_denoiser"]
+            order = list(per)
+            started = [d for d in order if per[d][0] > 0 and per[d][0] < per[d][1]]
+            assert len(started) <= 1, per
+            if prev is not None:
+                moved = [d for d in order if per[d][0] != prev.get(d, [0])[0]]
+                assert len(moved) <= 1, (prev, per)
+            for i, d in enumerate(order):
+                if live._STATE and d in live._STATE["navs"] and d not in finished_seen:
+                    finished_seen[d] = True
+                    nxt = order[i + 1 : i + 2]
+                    if nxt:
+                        assert per[nxt[0]][0] == 0, f"{nxt[0]} started in the call that finished {d}: {per}"
+            prev = per
+        if p["done"]:
+            break
+    assert set(finished_seen) == {"tl", "raw", "lowpass"}

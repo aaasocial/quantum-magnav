@@ -11,13 +11,20 @@ const FITS = ['select', 'raw', 'lowpass', 'tl', 'quantum'];
 // A scripted stand-in for magnav.api live_*: a fake clock advanced by each call, stage-2 fit
 // calls, then stage-3 calls that advance one denoiser at a time (tl, raw, lowpass) by up to
 // `perStep` windows at `msPerWindow[den]` each. Every call is recorded with the clock value.
+//
+// Same contract as magnav/live.py `_advance` (CR-01): a stage-3 call crosses at most ONE
+// denoiser boundary and never starts the next denoiser in the call that finished the previous
+// one. `stopLag` models the Python generator whose last yield reports windows_done == total
+// while its StopIteration only comes on the next call (an extra call with no new windows).
 function makeSim({
   windows = 10, perStep = 5, startMs = 0, fitMs = 1000, msPerWindow = { tl: 100, raw: 100, lowpass: 100 },
-  failAt = null, result = null,
+  failAt = null, result = null, stopLag = false,
 } = {}) {
   const clock = { t: 0 };
   const calls = [];
-  const s = { fits: 0, order: ['tl', 'raw', 'lowpass'], progress: {}, skipped: [], done: false, steps: 0 };
+  const s = {
+    fits: 0, order: ['tl', 'raw', 'lowpass'], progress: {}, finished: new Set(), skipped: [], done: false, steps: 0,
+  };
   const perDen = () => Object.fromEntries(s.order.map((d) => [d, [s.progress[d] ?? 0, windows]]));
   const stepJson = (extra) => ({
     ok: true, fits_done: s.fits, fits_total: 5, windows_total: windows, per_denoiser: perDen(),
@@ -41,16 +48,23 @@ function makeSim({
           s.fits += 1;
           return stepJson({ stage: 2, fitting: FITS[s.fits - 1], denoiser: null, windows_done: 0, per_denoiser: {} });
         }
-        const cur = s.order.find((d) => (s.progress[d] ?? 0) < windows);
+        const cur = s.order.find((d) => !s.finished.has(d));
         if (cur) {
-          const n = Math.min(perStep, windows - (s.progress[cur] ?? 0));
-          s.progress[cur] = (s.progress[cur] ?? 0) + n;
-          clock.t += n * msPerWindow[cur];
+          if ((s.progress[cur] ?? 0) >= windows) {
+            s.finished.add(cur); // the lagging StopIteration: this call ends at the boundary
+          } else {
+            const n = Math.min(perStep, windows - (s.progress[cur] ?? 0));
+            s.progress[cur] = (s.progress[cur] ?? 0) + n;
+            clock.t += n * msPerWindow[cur];
+            if (s.progress[cur] >= windows && !stopLag) s.finished.add(cur); // ends the call too
+          }
         }
-        s.done = !s.order.find((d) => (s.progress[d] ?? 0) < windows);
-        return stepJson({ stage: 3, fitting: null, denoiser: s.done ? null : cur, windows_done: cur ? s.progress[cur] : windows });
+        s.done = s.order.every((d) => s.finished.has(d));
+        const next = s.order.find((d) => !s.finished.has(d)) ?? null;
+        return stepJson({ stage: 3, fitting: null, denoiser: s.done ? null : next, windows_done: next ? (s.progress[next] ?? 0) : windows });
       }
       case 'live_skip':
+        if (s.finished.has(args[0])) return { ok: false, error_type: 'ValueError', error: `${args[0]} already finished` };
         s.skipped.push(args[0]);
         s.order = s.order.filter((d) => d !== args[0]);
         return { ok: true, skipped: [...s.skipped] };
@@ -240,6 +254,33 @@ test('skip projection: tl done at 60 s skips raw and lowpass', async () => {
   assert.equal(sim.s.progress.raw, undefined);
   assert.deepEqual(res.skipped, ['raw', 'lowpass']);
 });
+
+// CR-01: the real sequencing. tl finishes INSIDE a step (12 windows, 5 per call: the third
+// call does only 2) at exactly 80 s; raw has not started, so it and lowpass are skipped and the
+// finished tl result is still returned (no Timeout).
+for (const stopLag of [false, true]) {
+  test(`skip projection with tl finishing inside a step at 80 s (stopLag ${stopLag})`, async () => {
+    // Stage 2: 5 fits x 10 s = 50 s; tl: 12 windows x 2.5 s = 30 s -> done at 80 s.
+    const sim = makeSim({ fitMs: 10000, windows: 12, perStep: 5, stopLag, msPerWindow: { tl: 2500, raw: 2500, lowpass: 2500 } });
+    const d = deps(sim);
+    const res = await runLive(d.args);
+    assert.equal(res.ok, true, JSON.stringify(res.reason));
+    const skips = sim.calls.filter((c) => c.name === 'live_skip');
+    assert.deepEqual(skips.map((c) => c.args[0]), ['raw', 'lowpass']);
+    assert.ok(skips.every((c) => c.at === 80000), JSON.stringify(skips.map((c) => c.at)));
+    assert.equal(sim.s.progress.raw, undefined, 'raw never started');
+    assert.equal(sim.s.progress.lowpass, undefined, 'lowpass never started');
+    assert.deepEqual(res.skipped, ['raw', 'lowpass']);
+    assert.ok(res.computed.includes('tl'));
+    assert.equal(res.line, LINE_1003);
+    assert.equal(sim.names().at(-1), 'live_result');
+    // Every stage-3 step the driver saw crossed at most one denoiser boundary.
+    for (const { json } of d.steps.filter((x) => x.json.stage === 3)) {
+      const running = Object.values(json.per_denoiser).filter(([a, b]) => a > 0 && a < b);
+      assert.ok(running.length <= 1, JSON.stringify(json.per_denoiser));
+    }
+  });
+}
 
 test('createLiveRunner: a second start while in flight is Busy and calls no Python', async () => {
   const sim = makeSim();

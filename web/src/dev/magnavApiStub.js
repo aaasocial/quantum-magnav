@@ -101,6 +101,7 @@ function advance() {
     if (run.progress[name] >= run.windowsTotal) {
       run.finished.add(name);
       run.current += 1;
+      break; // like live.py _advance: a call ends at a denoiser boundary (CR-01)
     }
   }
   if (run.current >= run.order.length) run.phase = 'done';
