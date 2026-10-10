@@ -65,25 +65,53 @@ def backend_info(backend) -> str:
     return json.dumps(info)
 
 
+def _safe_value(value):
+    """JSON-safe echo of a caller input: plain ints pass through, anything else is repr()'d."""
+    if type(value) is int:
+        return value
+    try:
+        return repr(value)[:50]
+    except Exception:  # noqa: BLE001 - a hostile __repr__ must not break the contract
+        return f"<unrepresentable {type(value).__name__}>"
+
+
+def _backend_name(backend):
+    try:
+        name = getattr(backend, "name", None)
+    except Exception:  # noqa: BLE001
+        return None
+    return None if name is None else str(name)
+
+
 def _failure(backend, n, s, error_type: str, error: str) -> str:
+    """Failure JSON. Never raises, whatever the inputs are."""
     return json.dumps(
         {
             "ok": False,
-            "backend": getattr(backend, "name", None),
-            "n_circuits": n,
-            "shots": s,
-            "error_type": error_type,
-            "error": error[:2000],
+            "backend": _backend_name(backend),
+            "n_circuits": _safe_value(n),
+            "shots": _safe_value(s),
+            "error_type": str(error_type),
+            "error": str(error)[:2000],
         }
     )
+
+
+def _as_int(value) -> int:
+    """Strict int coercion: rejects bools and non-integral floats instead of truncating."""
+    if isinstance(value, bool):
+        raise TypeError(f"expected an integer, got bool {value!r}")
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"expected an integer, got non-integral float {value!r}")
+    return int(value)
 
 
 def run_bell_batch(backend, n_circuits=2, shots=200) -> str:
     """Submit ONE batched job of n_circuits Bell circuits and return per-circuit counts."""
     try:
-        n, s = int(n_circuits), int(shots)
-    except (TypeError, ValueError) as e:
-        return _failure(backend, n_circuits, shots, "ValueError", str(e))
+        n, s = _as_int(n_circuits), _as_int(shots)
+    except Exception as e:  # noqa: BLE001 - TypeError/ValueError/OverflowError or a JsProxy oddity
+        return _failure(backend, n_circuits, shots, "ValueError", f"{type(e).__name__}: {e}")
     if n not in ALLOWED_CIRCUITS or s not in ALLOWED_SHOTS:
         return _failure(
             backend,
