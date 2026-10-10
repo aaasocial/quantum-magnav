@@ -10,11 +10,11 @@ import dataclasses
 import numpy as np
 
 from magnav.classical import (
-    FLUXGATE,
     KRR_FEATURES,
     TL_BAND_HZ,
     TL_TERMS,
     build_denoisers,
+    select_tl_config,
 )
 from magnav.data import (
     FLT1003_LINE02,
@@ -69,9 +69,13 @@ def run_pipeline(
     cal_sensors, cal_truth = load_line(FLT1006_LINE08)
     cal_target = cal_truth.mag_1_c  # bare array: the only truth a denoiser ever sees
 
-    fitted = {}
+    fitted, selection = {}, {}
     for mag_key in sensors:
-        fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in build_denoisers(mag_key, backend).items()}
+        # D-19: fluxgate + lambda by blocked CV on the calibration line only
+        sel = select_tl_config(cal_sensors, cal_target, mag_key)
+        selection[mag_key] = sel
+        dens = build_denoisers(mag_key, backend, fluxgate=sel["fluxgate"], lam=sel["lambda"])
+        fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in dens.items()}
     tl_config, krr_config, quantum_config = {}, {}, {}
     for mag_key in sensors:
         krr = fitted[mag_key]["krr"].model
@@ -80,17 +84,31 @@ def run_pipeline(
             "lambda": krr.lam,
             "n_train": krr.n_train,
             "features": KRR_FEATURES,
+            "fluxgate": selection[mag_key]["fluxgate"],
             "target": "bandpassed TL residual on " + CAL_LINE,
         }
         quantum_config[mag_key] = fitted[mag_key]["quantum"].model.provenance
         tl, tlc = fitted[mag_key]["tl"], fitted[mag_key]["tl_currents"]
+        sel = selection[mag_key]
         tl_config[mag_key] = {
-            "fluxgate": FLUXGATE,
+            "fluxgate": tl.fluxgate,
             "terms": TL_TERMS,
             "band_hz": list(TL_BAND_HZ),
             "lambda": tl.lam,
             "cal_line": CAL_LINE,
-            "tl_currents": {"currents": list(tlc.current_names), "lambda": tlc.lam},
+            "selection": {
+                "method": "D-19 blocked CV on the calibration line only",
+                "n_blocks": sel["n_blocks"],
+                "score": sel["score"],
+                "cv_rmse_nT": sel["cv_rmse_nT"],
+                "cv_table": sel["cv_table"],
+            },
+            "tl_currents": {
+                "fluxgate": tlc.fluxgate,
+                "currents": list(tlc.current_names),
+                "lambda": tlc.lam,
+                "cv_rmse_nT": tlc.cv["cv_rmse_nT"],
+            },
         }
 
     window = TERCOM_PARAMS["window"]

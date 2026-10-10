@@ -114,3 +114,98 @@ def test_tl_currents_columns(lines):
     assert tlc.name == "tl_currents"
     assert tuple(tlc.current_names) == ("cur_outpwr", "cur_acpwr", "cur_heat", "cur_ac_hi")
     assert len(tlc.coef) == 22
+
+
+# ---------------------------------------------------------------------------
+# D-19: calibration-only fluxgate / lambda selection
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_cal(noise_sd: dict, seed=11):
+    """Sensors whose cabin mag is driven by the true field; each fluxgate reads it plus planted noise."""
+    from magnav.data import Sensors
+
+    fs = 2.0
+    t, b = _manoeuvre(n=1600, fs=fs)
+    rng = np.random.default_rng(seed)
+    planted = rng.normal(0, 400, 18)
+    earth = 53000.0 + 40.0 * np.sin(2 * np.pi * 0.004 * t)
+    mag = earth + tl_A(b[:, 0], b[:, 1], b[:, 2]) @ planted
+    flux = {}
+    for fg, sd in noise_sd.items():
+        noisy = b + rng.normal(0, sd, b.shape)
+        for i, ax in enumerate("xyz"):
+            flux[f"{fg}_{ax}"] = noisy[:, i]
+        flux[f"{fg}_t"] = np.linalg.norm(noisy, axis=1)
+    z = np.zeros_like(t)
+    sens = Sensors(t=t, fs=fs, line="1006.08", mag={"mag_4_uc": mag}, flux=flux, cur={},
+                   ins_pitch=z, ins_roll=z, ins_yaw=z, ins_vn=z, ins_vw=z, ins_vu=z,
+                   igrf=z, diurnal=z)  # fmt: skip
+    return sens, earth
+
+
+@pytest.mark.parametrize("cleanest", ["flux_a", "flux_b", "flux_c", "flux_d"])
+def test_select_tl_config_picks_lowest_noise_fluxgate(cleanest):
+    from magnav.classical import FLUXGATES, select_tl_config
+
+    noise = dict(zip(FLUXGATES, (40.0, 80.0, 120.0, 160.0)))
+    others = [fg for fg in FLUXGATES if fg != cleanest]
+    noise = {cleanest: 2.0, **{fg: noise[fg] for fg in others}}
+    sens, target = _synthetic_cal(noise)
+    sel = select_tl_config(sens, target, "mag_4_uc")
+    assert sel["fluxgate"] == cleanest, sel["cv_table"]
+    assert sel["lambda"] in LAMBDA_GRID
+    assert sel["n_blocks"] == 5
+    assert set(sel["cv_table"]) == set(FLUXGATES)
+    assert sel["cv_rmse_nT"] == min(min(v.values()) for v in sel["cv_table"].values())
+
+
+def test_select_tl_config_signature_is_calibration_only():
+    """The selector takes exactly one Sensors object and one target array: no held-out slot."""
+    import inspect
+
+    from magnav.classical import select_tl_config
+
+    params = list(inspect.signature(select_tl_config).parameters)
+    assert params[:3] == ["cal", "cal_target", "mag_key"]
+    assert not {"held_out", "lines", "test", "val", "sensors_list"} & set(params)
+
+
+def test_pipeline_passes_only_calibration_line_to_selector():
+    """AST check: every select_tl_config call in pipeline.py gets cal_sensors / cal_target, and
+    cal_sensors is bound only by load_line(FLT1006_LINE08)."""
+    import ast
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "magnav" / "pipeline.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "select_tl_config"]
+    assert calls, "pipeline must call select_tl_config"
+    for c in calls:
+        assert [getattr(a, "id", None) for a in c.args[:2]] == ["cal_sensors", "cal_target"]
+    binds = [n for n in ast.walk(tree) if isinstance(n, ast.Assign)
+             and any(isinstance(t, ast.Tuple) and any(getattr(e, "id", None) == "cal_sensors" for e in t.elts)
+                     for t in n.targets)]  # fmt: skip
+    assert len(binds) == 1
+    call = binds[0].value
+    assert call.func.id == "load_line" and call.args[0].id == "FLT1006_LINE08"
+    fits = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and getattr(n.func, "attr", None) == "fit"]
+    for c in fits:
+        assert [getattr(a, "id", None) for a in c.args[:2]] == ["cal_sensors", "cal_target"]
+
+
+def test_selector_runtime_sees_only_calibration_line(monkeypatch):
+    import magnav.pipeline as pl
+
+    seen = []
+    real = pl.select_tl_config
+
+    def spy(cal, cal_target, mag_key, *a, **k):
+        seen.append(cal.line)
+        return real(cal, cal_target, mag_key, *a, **k)
+
+    monkeypatch.setattr(pl, "select_tl_config", spy)
+    res = pl.run_pipeline(sensors=("mag_5_uc",), lines=("1003.02",), truncate=600)
+    assert seen == ["1006.08"]
+    assert res["config"]["tl"]["mag_5_uc"]["fluxgate"] in ("flux_a", "flux_b", "flux_c", "flux_d")
+    assert res["config"]["krr"]["mag_5_uc"]["fluxgate"] == res["config"]["tl"]["mag_5_uc"]["fluxgate"]

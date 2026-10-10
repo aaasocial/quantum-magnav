@@ -35,6 +35,15 @@ uv run python main.py
 
 `main.py` uses Qiskit's `BasicSimulator` locally. On Qollab the platform injects `backend`.
 
+## Method notes
+
+**Tolles-Lawson fluxgate and ridge lambda (decision D-19).** The aircraft carries four vector fluxgates (`flux_a` to `flux_d`). For each cabin sensor, the pipeline picks the fluxgate used by Tolles-Lawson, and the ridge lambda, jointly. It uses 5-fold blocked cross-validation (5 contiguous time blocks) on the calibration line 1006.08 only. The score is the full-band out-of-block RMSE of the compensated cabin magnetometer against the compensated reference `mag_1_c`, with the calibration offset fitted on the training blocks. The held-out lines 1003.02 and 1007.06 are never consulted. The chosen fluxgate also drives TL+currents (whose lambda is chosen by the same CV with that fluxgate fixed) and the 22 KRR/quantum features for that sensor. The choice is printed by `main.py` and stored in the run artifact's provenance (`provenance.tl`).
+
+| Sensor | Fluxgate | Lambda | CV RMSE on 1006.08 | TL+currents lambda |
+|---|---|---|---|---|
+| Mag 5 (`mag_5_uc`) | flux_a | 0.1 | 18.3 nT | 1e-4 |
+| Mag 4 (`mag_4_uc`) | flux_a | 0.01 | 86.8 nT | 1e-4 |
+
 ## Originality
 
 All code in this repository was written during the hackathon build window, starting Oct 9, 2026, 4:00 PM PDT. No pre-existing code, coursework or templates were reused.

@@ -24,6 +24,13 @@ print(
     f"seed={cfg['seed']}  INS bias={cfg['dr']['bias_mps']} m/s  random walk={cfg['dr']['rw_sigma']} m/s/sqrt(s)  "
     f"TERCOM gate={cfg['tercom']['gate']}"
 )
+for mag_key, tl in cfg["tl"].items():
+    sel = tl["selection"]
+    print(
+        f"D-19 {mag_key}: fluxgate={tl['fluxgate']} lambda={tl['lambda']:g} "
+        f"CV RMSE={sel['cv_rmse_nT']:.1f} nT ({sel['n_blocks']}-block CV on {tl['cal_line']} only); "
+        f"tl_currents lambda={tl['tl_currents']['lambda']:g}"
+    )
 for line_id, info in result["lines"].items():
     print(f"Line {line_id}: GPS jammed at t={info['jam_t']:.1f} s (index {info['jam_idx']}) of {info['n']} samples")
 print()

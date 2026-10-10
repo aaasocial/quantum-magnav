@@ -56,7 +56,7 @@ class LowPassDenoiser(RawDenoiser):
 # ---------------------------------------------------------------------------
 
 BT_SCALE = 50000.0
-FLUXGATE = "flux_a"  # MagNav.jl default use_vec (fixed a priori, never chosen on held-out lines)
+FLUXGATE = "flux_a"  # MagNav.jl default use_vec; only a fallback, the pipeline selects per sensor (D-19)
 TL_BAND_HZ = (0.1, 0.9)
 TL_TRIM = 4  # MagNav trims 20 samples at 10 Hz -> 4 at 2 Hz
 TL_TERMS = 18
@@ -121,17 +121,108 @@ def select_lambda(A_f: np.ndarray, y_f: np.ndarray, grid=LAMBDA_GRID) -> float:
     return best
 
 
+# ---------------------------------------------------------------------------
+# D-19: per-sensor fluxgate + lambda by blocked CV on the calibration line only
+# ---------------------------------------------------------------------------
+
+FLUXGATES = ("flux_a", "flux_b", "flux_c", "flux_d")
+CV_BLOCKS = 5
+CV_SCORE = "full-band out-of-block RMSE (nT) of compensated cabin mag vs calibration truth, bias fitted on training blocks"
+
+
+def _tl_design(cal: Sensors, fluxgate: str, current_names=()) -> np.ndarray:
+    f = cal.flux
+    A = tl_A(f[f"{fluxgate}_x"], f[f"{fluxgate}_y"], f[f"{fluxgate}_z"])
+    if current_names:
+        cur = np.column_stack([np.asarray(cal.cur[c], dtype=np.float64) for c in current_names])
+        A = np.hstack([A, cur])
+    return A
+
+
+def _segments(mask: np.ndarray) -> list:
+    """Contiguous True runs of a boolean mask as (start, stop) pairs."""
+    idx = np.flatnonzero(np.diff(np.concatenate([[0], mask.astype(np.int8), [0]])))
+    return list(zip(idx[::2], idx[1::2]))
+
+
+def _cv_scores(A: np.ndarray, mag: np.ndarray, target: np.ndarray, fs: float, grid, n_blocks: int) -> dict:
+    """Out-of-block full-band RMSE per lambda for one design matrix (all arrays from one line)."""
+    n = len(mag)
+    edges = np.linspace(0, n, n_blocks + 1).astype(int)
+    sq = {float(lam): 0.0 for lam in grid}
+    count = 0
+    for k in range(n_blocks):
+        test = np.zeros(n, dtype=bool)
+        test[edges[k] : edges[k + 1]] = True
+        A_parts, y_parts = [], []
+        for a, b in _segments(~test):  # bandpass each contiguous training segment on its own
+            if b - a <= 2 * TL_TRIM + 30:
+                continue
+            A_parts.append(bpf(A[a:b], fs)[TL_TRIM : b - a - TL_TRIM])
+            y_parts.append(bpf(mag[a:b], fs)[TL_TRIM : b - a - TL_TRIM])
+        A_f, y_f = np.vstack(A_parts), np.concatenate(y_parts)
+        sd = _col_scale(A_f)
+        train = ~test
+        for lam in grid:
+            coef = ridge(A_f / sd, y_f, lam) / sd
+            comp = mag - A @ coef
+            bias = float(np.mean(comp[train] - target[train]))
+            err = comp[test] - bias - target[test]
+            sq[float(lam)] += float(np.sum(err * err))
+        count += int(test.sum())
+    return {lam: float(np.sqrt(v / count)) for lam, v in sq.items()}
+
+
+def select_tl_config(
+    cal: Sensors,
+    cal_target: np.ndarray,
+    mag_key: str,
+    fluxgates=FLUXGATES,
+    grid=LAMBDA_GRID,
+    current_names=(),
+    n_blocks: int = CV_BLOCKS,
+) -> dict:
+    """D-19: choose (fluxgate, lambda) jointly by blocked CV on ONE calibration line.
+
+    `cal` / `cal_target` must be the calibration line (1006.08) and its truth array; the
+    function sees no other data. Score: CV_SCORE. Ties break to the earlier fluxgate,
+    then the smaller lambda.
+    """
+    mag = np.asarray(cal.mag[mag_key], dtype=np.float64)
+    target = np.asarray(cal_target, dtype=np.float64)
+    table = {}
+    best = (None, None, np.inf)
+    for fg in fluxgates:
+        scores = _cv_scores(_tl_design(cal, fg, current_names), mag, target, cal.fs, grid, n_blocks)
+        table[fg] = scores
+        for lam in grid:
+            if scores[float(lam)] < best[2]:
+                best = (fg, float(lam), scores[float(lam)])
+    return {
+        "fluxgate": best[0],
+        "lambda": best[1],
+        "cv_rmse_nT": best[2],
+        "cv_table": {fg: {f"{lam:g}": s for lam, s in sc.items()} for fg, sc in table.items()},
+        "n_blocks": int(n_blocks),
+        "score": CV_SCORE,
+        "cal_line": cal.line,
+    }
+
+
 class TLDenoiser:
     """Tolles-Lawson compensation of one cabin magnetometer from one fluxgate (BASE-01).
 
     With n_currents > 0 the n largest-std current channels of the calibration line are
-    appended as extra regressors (D-10, "tl_currents").
+    appended as extra regressors (D-10, "tl_currents"). With lam=None the ridge lambda is
+    chosen at fit time by the D-19 blocked CV on the calibration arrays (fluxgate fixed).
     """
 
-    def __init__(self, mag_key: str, fluxgate: str = FLUXGATE, n_currents: int = 0):
+    def __init__(self, mag_key: str, fluxgate: str = FLUXGATE, n_currents: int = 0, lam: float | None = None):
         self.mag_key = mag_key
         self.fluxgate = fluxgate
         self.n_currents = int(n_currents)
+        self.lam_fixed = None if lam is None else float(lam)
+        self.cv = None
         self.name = "tl" if self.n_currents == 0 else "tl_currents"
         self.current_names: tuple = ()
         self.coef = None
@@ -139,13 +230,7 @@ class TLDenoiser:
         self.bias = 0.0
 
     def _A(self, sensors: Sensors) -> np.ndarray:
-        f = sensors.flux
-        g = self.fluxgate
-        A = tl_A(f[f"{g}_x"], f[f"{g}_y"], f[f"{g}_z"])
-        if self.current_names:
-            cur = np.column_stack([np.asarray(sensors.cur[c], dtype=np.float64) for c in self.current_names])
-            A = np.hstack([A, cur])
-        return A
+        return _tl_design(sensors, self.fluxgate, self.current_names)
 
     def fit(self, cal: Sensors, target: np.ndarray):
         if self.n_currents:
@@ -156,7 +241,11 @@ class TLDenoiser:
         trim = slice(TL_TRIM, len(mag) - TL_TRIM)
         A_f = bpf(A, cal.fs)[trim]
         y_f = bpf(mag, cal.fs)[trim]  # classic TL target (MagNav y_type :e); bandpass removes DC
-        self.lam = select_lambda(A_f, y_f)
+        if self.lam_fixed is None:
+            self.cv = select_tl_config(cal, target, self.mag_key, fluxgates=(self.fluxgate,), current_names=self.current_names)
+            self.lam = self.cv["lambda"]
+        else:
+            self.lam = self.lam_fixed
         sd = _col_scale(A_f)
         self.coef = ridge(A_f / sd, y_f, self.lam) / sd
         self.bias = float(np.mean((mag - A @ self.coef) - np.asarray(target, dtype=np.float64)))
@@ -278,20 +367,24 @@ class ResidualCorrected:
     def fit(self, cal: Sensors, target: np.ndarray):
         self.base.fit(cal, target)
         r = self.base.predict(cal) - np.asarray(target, dtype=np.float64)
-        self.model.fit(kernel_features(cal), bpf(r, cal.fs))
+        self.model.fit(kernel_features(cal, self.base.fluxgate), bpf(r, cal.fs))
         return self
 
     def predict(self, sensors: Sensors) -> np.ndarray:
-        return self.base.predict(sensors) - self.model.predict(kernel_features(sensors))
+        return self.base.predict(sensors) - self.model.predict(kernel_features(sensors, self.base.fluxgate))
 
 
-def build_denoisers(mag_key: str, backend=None) -> dict:
-    """Ordered denoiser set for one cabin sensor (NAV-02: all share one navigator)."""
+def build_denoisers(mag_key: str, backend=None, fluxgate: str = FLUXGATE, lam: float | None = None) -> dict:
+    """Ordered denoiser set for one cabin sensor (NAV-02: all share one navigator).
+
+    `fluxgate` / `lam` come from select_tl_config on the calibration line (D-19); the same
+    fluxgate feeds TL, TL+currents and the KRR/quantum kernel_features.
+    """
     return {
         "raw": RawDenoiser(mag_key),
         "lowpass": LowPassDenoiser(mag_key),
-        "tl": TLDenoiser(mag_key),
-        "tl_currents": TLDenoiser(mag_key, n_currents=4),
-        "krr": ResidualCorrected(TLDenoiser(mag_key), KRRResidual(), "krr"),
-        "quantum": ResidualCorrected(TLDenoiser(mag_key), QuantumDenoiser(backend), "quantum"),
+        "tl": TLDenoiser(mag_key, fluxgate, lam=lam),
+        "tl_currents": TLDenoiser(mag_key, fluxgate, n_currents=4),
+        "krr": ResidualCorrected(TLDenoiser(mag_key, fluxgate, lam=lam), KRRResidual(), "krr"),
+        "quantum": ResidualCorrected(TLDenoiser(mag_key, fluxgate, lam=lam), QuantumDenoiser(backend), "quantum"),
     }
