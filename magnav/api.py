@@ -10,6 +10,10 @@ from qiskit import __version__ as QISKIT_VERSION
 SMOKE_DATA = "data/smoke.json"  # literal path: Qollab preloads only literal paths
 ALLOWED_CIRCUITS = (1, 2, 32, 64, 128)
 ALLOWED_SHOTS = (100, 200, 500, 1024, 4096)
+IONQ_SINGLE_CIRCUIT_ERROR = (
+    "Qollab's IonQ proxy accepts only single-circuit jobs (job type ionq.circuit.v1); "
+    "use n_circuits=1. Nothing was submitted, so this run's one IonQ job is still available."
+)
 
 
 def _bell(i: int) -> QuantumCircuit:
@@ -21,6 +25,13 @@ def _bell(i: int) -> QuantumCircuit:
         qc.x(1)
     qc.measure([0, 1], [0, 1])
     return qc
+
+
+def _is_ionq(backend) -> bool:
+    """IonQ detection by provider module first, backend name as a fallback."""
+    module = getattr(type(backend), "__module__", "") or ""
+    name = getattr(backend, "name", None)
+    return module.startswith("qiskit_ionq") or str(name or "").lower().startswith("ionq")
 
 
 def _module_version(name: str) -> str:
@@ -39,7 +50,7 @@ def backend_info(backend) -> str:
         "class": type(backend).__name__,
         "num_qubits": getattr(backend, "num_qubits", None),
         "noise_model": None if noise is None else str(noise),
-        "is_ionq": str(name).startswith("ionq"),
+        "is_ionq": _is_ionq(backend),
         "python": sys.version,
         "platform": sys.platform,
         "qiskit": QISKIT_VERSION,
@@ -81,13 +92,16 @@ def run_bell_batch(backend, n_circuits=2, shots=200) -> str:
             "ValueError",
             f"n_circuits must be one of {ALLOWED_CIRCUITS} and shots one of {ALLOWED_SHOTS}",
         )
+    if n != 1 and _is_ionq(backend):
+        # Reject BEFORE submitting: a failed multi-circuit job would still use up
+        # the run's single IonQ job (docs/QOLLAB_FINDINGS.md).
+        return _failure(backend, n, s, "ValueError", IONQ_SINGLE_CIRCUIT_ERROR)
     circuits = [_bell(i) for i in range(n)]
     try:
         tqc = transpile(circuits, backend, optimization_level=1)  # 0-1 for IonQ
         # A bare circuit submits as job type ionq.circuit.v1; a list submits as
-        # ionq.multi-circuit.v1 (qiskit-ionq helpers.py). Qollab's IonQ proxy was
-        # observed (2026-10-10) rejecting multi-circuit with HTTP 400, so n=1 probes
-        # the single-circuit path.
+        # ionq.multi-circuit.v1 (qiskit-ionq helpers.py). Qollab's IonQ proxy rejects
+        # multi-circuit jobs with HTTP 400 (observed 2026-10-10), so IonQ is n=1 only.
         payload = tqc[0] if n == 1 else tqc
         t0 = time.time()
         job = backend.run(payload, shots=s)  # EXACTLY ONE job per call (IonQ one-job rule)

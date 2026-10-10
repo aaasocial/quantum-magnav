@@ -7,6 +7,7 @@ const INFO_FIELDS = [
   'name', 'class', 'num_qubits', 'noise_model', 'python', 'qiskit',
   'numpy', 'scipy', 'sklearn', 'qiskit_ionq', 'data_file',
 ];
+const IONQ_CIRCUITS_HELP = "Qollab's IonQ proxy accepts only single-circuit jobs, so IonQ runs use 1 circuit.";
 const IONQ_LOCK_MESSAGE = 'IonQ allows one job per run. Press Stop, then Run, to submit another.';
 
 // Resolved after the first IonQ job finishes; main.jsx awaits it to keep the Qollab run alive.
@@ -21,9 +22,10 @@ function show(value) {
 export default function App() {
   const circuitsId = useId();
   const shotsId = useId();
+  const circuitsHelpId = useId();
   const [info, setInfo] = useState(null);
   const [status, setStatus] = useState(qBackend ? 'Loading backend info…' : '');
-  const [nCircuits, setNCircuits] = useState(2);
+  const [nCircuits, setNCircuits] = useState(1); // 1 is the only value IonQ on Qollab accepts
   const [shots, setShots] = useState(200);
   const [busy, setBusy] = useState(false);
   const [ionqLocked, setIonqLocked] = useState(false);
@@ -46,18 +48,23 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  const isIonq = Boolean(info?.is_ionq);
+  const isIonq = info?.is_ionq === true; // detected in Python (provider module or name)
+
+  useEffect(() => {
+    if (isIonq) setNCircuits(1);
+  }, [isIonq]);
   const disabled = !qBackend || !info || busy || ionqLocked;
 
   async function submit() {
     if (disabled || (isIonq && submitted.current)) return;
     submitted.current = true;
+    const n = isIonq ? 1 : nCircuits; // never send a multi-circuit job to IonQ
     setBusy(true);
     setResult(null);
     if (isIonq) setIonqLocked(true); // lock before the call: one job per IonQ run
-    setStatus(`Submitting ${nCircuits} circuits × ${shots} shots to ${info.name}…`);
+    setStatus(`Submitting ${n} circuits × ${shots} shots to ${info.name}…`);
     try {
-      const res = await callPy('run_bell_batch', nCircuits, shots);
+      const res = await callPy('run_bell_batch', n, shots);
       console.log(JSON.stringify(res));
       setResult(res);
       let message = res.ok
@@ -106,9 +113,13 @@ export default function App() {
               value={nCircuits}
               onChange={(e) => setNCircuits(Number(e.target.value))}
               disabled={busy || ionqLocked}
+              aria-describedby={isIonq ? circuitsHelpId : undefined}
             >
-              {CIRCUIT_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+              {CIRCUIT_OPTIONS.map((n) => (
+                <option key={n} value={n} disabled={isIonq && n !== 1}>{n}</option>
+              ))}
             </select>
+            {isIonq && <p id={circuitsHelpId} className="help">{IONQ_CIRCUITS_HELP}</p>}
           </div>
           <div className="field">
             <label htmlFor={shotsId}>Shots</label>
