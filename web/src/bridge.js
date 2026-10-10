@@ -6,7 +6,10 @@ import * as api from 'magnav.api';
 export const qBackend = typeof backend !== 'undefined' ? backend : (globalThis.backend ?? null);
 
 // Exactly one Python call in flight: a second callPromising while one is suspended is
-// undocumented in Pyodide, so every call joins one module-level promise chain.
+// undocumented in Pyodide, so every call joins one module-level promise chain. The chain moves
+// on when the call settles (resolved or rejected). Python running on the page's thread cannot
+// be interrupted: the live watchdog (lib/liveRun.js) can abandon a slow call and fall back, but
+// the queue (and any live_cancel queued behind it) only resumes once that call returns.
 let chain = Promise.resolve();
 function enqueue(task) {
   const p = chain.then(task, task);

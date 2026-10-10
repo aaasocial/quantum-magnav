@@ -355,3 +355,56 @@ test('liveProgress reports the current denoiser\'s own windows and its position 
   assert.equal(fit.denoiserIndex, 0);
   assert.equal(fit.fitting, 'tl');
 });
+
+// ---- WR-05: watchdog on a single Python call ----
+
+// A tick that is one macrotask and advances the fake clock by stepMs (a frame of wall time).
+const tickBy = (sim, stepMs) => () => new Promise((resolve) => {
+  setImmediate(() => { sim.clock.t += stepMs; resolve(); });
+});
+
+test('watchdog: a normal run with a ticking watchdog still succeeds', async () => {
+  const sim = makeSim();
+  const res = await runLive(deps(sim, { tick: tickBy(sim, 0) }).args);
+  assert.equal(res.ok, true, JSON.stringify(res.reason));
+  assert.equal(sim.names().at(-1), 'live_result');
+});
+
+test('watchdog: a call that never returns fails with Timeout once the deadline passes', async () => {
+  const sim = makeSim({ failAt: (name, n) => (name === 'live_step' && n === 3 ? new Promise(() => {}) : null) });
+  const res = await runLive(deps(sim, { tick: tickBy(sim, 1000) }).args);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason.name, 'Timeout');
+  assert.ok(res.elapsedMs > DEADLINE_MS && res.elapsedMs <= DEADLINE_MS + 1000, String(res.elapsedMs));
+  assert.equal(sim.names().at(-1), 'live_cancel', 'live_cancel is queued behind the hung call');
+  assert.ok(!sim.names().includes('live_result'));
+});
+
+test('watchdog: the late result of an abandoned call is discarded', async () => {
+  let release;
+  const late = new Promise((resolve) => { release = resolve; });
+  const sim = makeSim({ failAt: (name, n) => (name === 'live_step' && n === 6 ? late : null) });
+  const res = await runLive(deps(sim, { tick: tickBy(sim, 5000) }).args);
+  assert.equal(res.ok, false);
+  assert.equal(res.reason.name, 'Timeout');
+  const before = sim.names().length;
+  release({ ok: true, stage: 3, done: true, per_denoiser: {} }); // the call finally returns
+  await new Promise((r) => setImmediate(r));
+  assert.equal(sim.names().length, before, 'no Python call follows the late result');
+  assert.equal(res.reason.name, 'Timeout');
+});
+
+test('watchdog: cancel() ends the run while a call is still pending', async () => {
+  const sim = makeSim({ failAt: (name, n) => (name === 'live_step' && n === 2 ? new Promise(() => {}) : null) });
+  const { line, sensor, simulateFailure, onStage, onStep, ...rest } = deps(sim, { tick: tickBy(sim, 10) }).args;
+  const runner = createLiveRunner(rest);
+  const run = runner.start({ line, sensor, simulateFailure, onStage, onStep });
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  const res = await runner.cancel();
+  assert.equal(res.ok, false);
+  assert.equal(res.reason.name, 'Cancelled');
+  assert.equal(await run, res);
+  assert.ok(res.elapsedMs < DEADLINE_MS);
+  assert.equal(runner.isInFlight(), false);
+});

@@ -7,6 +7,13 @@
 // when elapsed + projected (tl's own duration) would pass 80 s. Any failure cancels the run.
 // cancel() (End run during a live run, WR-01) is honoured before every Python call and ends
 // the run with reason Cancelled, after live_cancel has cleared the Python state.
+//
+// Watchdog (WR-05): with an injected `tick` (one animation frame in the app), every Python call
+// is raced against the deadline and cancel(), re-checked on each tick with the injected clock.
+// A call that outlives the 90 s deadline is ABANDONED: the run fails with Timeout at once (the
+// UI falls back), its late result is ignored, and live_cancel is queued behind it without being
+// awaited. Pyodide cannot interrupt Python running on the page's thread: the bridge queue only
+// moves on once that call returns, and a truly hung call keeps the queue blocked.
 
 export const DEADLINE_MS = 90000;
 export const SKIP_PROJECTION_MS = 80000;
@@ -30,7 +37,7 @@ function checkOk(res, what) {
 
 export async function runLive({
   line, sensor, simulateFailure = false, callPy, now, yieldFn, validate,
-  onStage = () => {}, onStep = () => {}, isCancelled = () => false,
+  onStage = () => {}, onStep = () => {}, isCancelled = () => false, tick = null,
 }) {
   const t0 = now();
   const elapsed = () => now() - t0;
@@ -46,18 +53,45 @@ export async function runLive({
     if (elapsed() > DEADLINE_MS) throw namedError('Timeout', 'Live run took longer than 90 s');
   };
 
+  // Races one Python call against the deadline and cancel() (no-op without a tick function).
+  const call = async (...args) => {
+    const p = Promise.resolve(callPy(...args));
+    if (!tick) return p;
+    let settled = false;
+    const watch = (async () => {
+      while (!settled) {
+        await tick();
+        if (settled) return undefined;
+        let err = null;
+        if (isCancelled()) err = namedError('Cancelled', 'Live run cancelled');
+        else if (elapsed() > DEADLINE_MS) err = namedError('Timeout', 'Live run took longer than 90 s');
+        if (err) {
+          err.abandoned = true;
+          p.catch(() => {}); // the late result (or error) of the abandoned call is discarded
+          throw err;
+        }
+      }
+      return undefined;
+    })();
+    try {
+      return await Promise.race([p, watch]);
+    } finally {
+      settled = true;
+    }
+  };
+
   const skipped = [];
   let stage3StartMs = null; // elapsed time when map matching began (end of the last fit call)
   let tlMs = null; // tl's measured duration = projected duration of each remaining denoiser
 
   try {
     enter(1);
-    checkOk(await callPy('live_start', line, sensor, Boolean(simulateFailure)), 'live_start');
+    checkOk(await call('live_start', line, sensor, Boolean(simulateFailure)), 'live_start');
 
     for (;;) {
       checkDeadline();
       const c0 = now();
-      const step = checkOk(await callPy('live_step', STEP_BUDGET_MS), 'live_step');
+      const step = checkOk(await call('live_step', STEP_BUDGET_MS), 'live_step');
       const callMs = now() - c0;
       if (step.stage === 2) {
         enter(2);
@@ -83,7 +117,7 @@ export async function runLive({
           if (p[0] > 0) break; // running: it decides the timing of the ones after it
           if (elapsed() + tlMs > SKIP_PROJECTION_MS) {
             checkDeadline();
-            checkOk(await callPy('live_skip', den), 'live_skip');
+            checkOk(await call('live_skip', den), 'live_skip');
             skipped.push(den);
             continue;
           }
@@ -96,7 +130,7 @@ export async function runLive({
     await yieldFn();
     checkDeadline();
     enter(4);
-    const res = checkOk(await callPy('live_result'), 'live_result');
+    const res = checkOk(await call('live_result'), 'live_result');
     if (!res.line || typeof res.line !== 'object') throw namedError('InvalidShape', 'live_result has no line');
     const problems = validate(res.line, sensor);
     if (problems.length) throw namedError('InvalidShape', problems.slice(0, 3).join('; '));
@@ -109,7 +143,10 @@ export async function runLive({
     };
   } catch (err) {
     try {
-      await callPy('live_cancel');
+      const cancelled = Promise.resolve(callPy('live_cancel'));
+      // An abandoned call still holds the bridge queue: queue the cancel, do not wait for it.
+      if (err?.abandoned) cancelled.catch(() => {});
+      else await cancelled;
     } catch {
       // best effort: the run is already failing
     }

@@ -19,10 +19,18 @@ function yieldToEventLoop() {
   });
 }
 
+// Watchdog tick (WR-05): one animation frame, so a pending Python call is checked against the
+// 90 s deadline (performance.now) about 60 times a second without timers or a busy loop. In a
+// hidden tab rAF pauses, and the check resumes when the tab is shown again.
+function nextFrame() {
+  return new Promise((resolve) => { requestAnimationFrame(() => resolve()); });
+}
+
 const runner = createLiveRunner({
   callPy: probeLiveCall(callPy),
   now: () => performance.now(),
   yieldFn: yieldToEventLoop,
+  tick: nextFrame,
   validate: validateLine,
 });
 
