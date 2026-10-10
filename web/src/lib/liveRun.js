@@ -5,6 +5,8 @@
 // matching in ~250 ms chunks) -> live_result. The 90 s deadline is checked before EVERY
 // live_step and again before live_result. After tl finishes, raw and then lowpass are skipped
 // when elapsed + projected (tl's own duration) would pass 80 s. Any failure cancels the run.
+// cancel() (End run during a live run, WR-01) is honoured before every Python call and ends
+// the run with reason Cancelled, after live_cancel has cleared the Python state.
 
 export const DEADLINE_MS = 90000;
 export const SKIP_PROJECTION_MS = 80000;
@@ -28,7 +30,7 @@ function checkOk(res, what) {
 
 export async function runLive({
   line, sensor, simulateFailure = false, callPy, now, yieldFn, validate,
-  onStage = () => {}, onStep = () => {},
+  onStage = () => {}, onStep = () => {}, isCancelled = () => false,
 }) {
   const t0 = now();
   const elapsed = () => now() - t0;
@@ -40,6 +42,7 @@ export async function runLive({
     }
   };
   const checkDeadline = () => {
+    if (isCancelled()) throw namedError('Cancelled', 'Live run cancelled');
     if (elapsed() > DEADLINE_MS) throw namedError('Timeout', 'Live run took longer than 90 s');
   };
 
@@ -79,6 +82,7 @@ export async function runLive({
           if (p[0] >= p[1]) continue; // finished
           if (p[0] > 0) break; // running: it decides the timing of the ones after it
           if (elapsed() + tlMs > SKIP_PROJECTION_MS) {
+            checkDeadline();
             checkOk(await callPy('live_skip', den), 'live_skip');
             skipped.push(den);
             continue;
@@ -120,9 +124,12 @@ export async function runLive({
 }
 
 // One live run at a time. The in-flight flag is set before the first await (Pitfall 8), so a
-// second start() is refused without touching Python.
+// second start() is refused without touching Python. cancel() asks the run in flight to stop
+// at its next Python call and resolves with that run's (Cancelled) result; null when idle.
 export function createLiveRunner(deps) {
   let inFlight = false;
+  let cancelRequested = false;
+  let current = null;
   return {
     isInFlight: () => inFlight,
     start(args) {
@@ -130,7 +137,17 @@ export function createLiveRunner(deps) {
         return Promise.resolve({ ok: false, reason: { name: 'Busy', message: 'A live run is already in progress' } });
       }
       inFlight = true;
-      return runLive({ ...deps, ...args }).finally(() => { inFlight = false; });
+      cancelRequested = false;
+      current = runLive({ ...deps, ...args, isCancelled: () => cancelRequested }).finally(() => {
+        inFlight = false;
+        current = null;
+      });
+      return current;
+    },
+    cancel() {
+      if (!inFlight) return Promise.resolve(null);
+      cancelRequested = true;
+      return current;
     },
   };
 }

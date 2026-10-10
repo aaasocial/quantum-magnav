@@ -31,6 +31,7 @@ const IDLE_CHECK_MS = 30 * 1000;
 const RUN_ENDED_MESSAGE = 'This run has ended. Press Stop, then Run, to start a new one.';
 const IDLE_MESSAGE = `Keep-alive limit (30 min) reached. ${RUN_ENDED_MESSAGE}`;
 const READOUT_EVERY_MS = 10 * 1000; // announced error readout: at most once per 10 s wall time
+const LIVE_CANCELLED_MESSAGE = 'Live run cancelled.';
 
 // main.jsx awaits runDone to keep the Qollab run alive. It resolves only on End run or the
 // idle bound; never because no backend is selected (the replay needs none). Resolving twice is harmless.
@@ -158,13 +159,23 @@ export default function App() {
   useEffect(() => { playback.setSpeed(speed); }, [speed]);
   useEffect(() => { playback.setReduced(reduced); }, [reduced]);
 
-  const endRun = useCallback((message) => {
+  // End run during a live run (WR-01): cancel the live run first (Python state cleared by
+  // live_cancel), announce the cancellation joined with the ended message, then end the run.
+  const liveCancel = live.cancel;
+  const endRun = useCallback(async (message) => {
     if (endedRef.current) return;
     endedRef.current = true;
     setRunEnded(true);
-    setStatusMessage(message);
+    if (liveRunFlag.inFlight) {
+      const text = `${LIVE_CANCELLED_MESSAGE} ${message}`;
+      setStatusMessage(text);
+      announce(`${text}${modeSuffix('precomputed')}`);
+      await liveCancel();
+    } else {
+      setStatusMessage(message);
+    }
     resolveRunDone();
-  }, []);
+  }, [liveCancel]);
 
   // Probes once on mount (Pitfalls 5 and 7).
   useEffect(() => {
@@ -265,6 +276,13 @@ export default function App() {
       });
     } finally {
       liveRunFlag.inFlight = false;
+    }
+    if (endedRef.current) {
+      // Ended (and cancelled) while computing: back to the replay, keep the ended message.
+      setLiveOverride(null);
+      setMode('precomputed');
+      playback.pause();
+      return;
     }
     if (res.ok) {
       setLiveOverride({ line: runLine, sensor: runSensor, data: res.line });

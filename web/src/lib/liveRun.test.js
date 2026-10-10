@@ -311,3 +311,29 @@ test('createLiveRunner clears the in-flight flag after a failure', async () => {
   assert.equal(r.ok, false);
   assert.equal(runner.isInFlight(), false);
 });
+
+test('createLiveRunner.cancel stops at the next Python call, cancels in Python and resolves Cancelled', async () => {
+  const sim = makeSim();
+  let runner = null;
+  let cancelP = null;
+  let steps = 0;
+  const { line, sensor, simulateFailure, onStage, onStep, ...rest } = deps(sim, {
+    yieldFn: async () => {
+      steps += 1;
+      if (steps === 3) cancelP = runner.cancel();
+    },
+  }).args;
+  runner = createLiveRunner(rest);
+  assert.equal(await runner.cancel(), null, 'cancel while idle is a no-op');
+  const res = await runner.start({ line, sensor, simulateFailure, onStage, onStep });
+  assert.equal(res.ok, false);
+  assert.equal(res.reason.name, 'Cancelled');
+  assert.equal(await cancelP, res, 'cancel() resolves with the run result');
+  const names = sim.names();
+  assert.equal(names.filter((n) => n === 'live_step').length, 3);
+  assert.equal(names.at(-1), 'live_cancel');
+  assert.ok(!names.includes('live_result'));
+  assert.equal(runner.isInFlight(), false);
+  const again = await runner.start({ line, sensor, simulateFailure, onStage, onStep });
+  assert.equal(again.ok, true, 'a cancel does not leak into the next run');
+});

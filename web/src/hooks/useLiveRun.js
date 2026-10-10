@@ -83,5 +83,8 @@ export function useLiveRun() {
     return res;
   }, []);
 
-  return { inFlight, stage, progress, start };
+  // End run during a live run (WR-01): stop at the next Python call; resolves with the result.
+  const cancel = useCallback(() => runner.cancel(), []);
+
+  return { inFlight, stage, progress, start, cancel };
 }
