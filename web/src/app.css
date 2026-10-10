@@ -60,3 +60,56 @@ pre {
 
 footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #b0b0b0; font-size: 0.95rem; }
 footer p { margin: 0.2rem 0; }
+
+/* ---- MapView (03-02). Uses the UI-SPEC tokens only; keep when the theme is rewritten. ---- */
+.map-figure {
+  margin: 0;
+  padding: var(--space-3);
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+.map-figure h2 { margin: 0 0 var(--space-2); font-size: var(--text-md); font-weight: 600; }
+.map-figure figcaption { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--color-text-muted); }
+.map-stage { position: relative; width: 100%; display: flex; justify-content: center; background: var(--color-surface); }
+.map-plot { position: relative; }
+.map-plot canvas, .map-overlay { position: absolute; inset: 0; display: block; }
+.map-overlay { overflow: visible; pointer-events: none; }
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+  color: var(--color-text-muted);
+}
+.error-readout {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  max-width: calc(100% - 2 * var(--space-2));
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.error-readout p { margin: 0; }
+.readout-label { font-size: var(--text-sm); font-weight: 600; }
+.readout-value { font-size: var(--text-xl); font-weight: 600; line-height: 1.2; }
+.readout-dr { font-size: var(--text-sm); color: var(--color-text-muted); }
+.readout-state { font-size: var(--text-md); }
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+}
+.colorbar { display: grid; gap: var(--space-1); }
+.colorbar-canvas { display: block; width: 160px; height: 12px; }
+.colorbar-ticks { position: relative; width: 160px; height: 1.4em; font-variant-numeric: tabular-nums; }
+.colorbar-ticks span { position: absolute; top: 0; white-space: nowrap; }
+.legend-item { display: inline-flex; align-items: center; gap: var(--space-1); }
+.legend-swatch { display: block; width: 12px; height: 12px; }

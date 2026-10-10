@@ -39,7 +39,7 @@ test('colorbarTicks gives min, 0 and max rounded to 100 inside the domain', () =
   const ticks = colorbarTicks([-835, 2065]);
   assert.deepEqual(ticks.map((k) => k.value), [-800, 0, 2000]);
   assert.deepEqual(ticks.map((k) => k.label), ['-800 nT', '0', '2,000 nT']);
-  for (const k of ticks) assert.equal(k.value % 100, 0);
+  for (const k of ticks) assert.equal(Math.abs(k.value % 100), 0);
   // zero outside the domain is omitted
   assert.deepEqual(colorbarTicks([150, 1490]).map((k) => k.value), [200, 1400]);
 });
