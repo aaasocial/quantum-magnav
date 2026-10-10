@@ -2,6 +2,7 @@
 phase: 4
 slug: quantum-denoiser-and-ionq-runs
 status: approved
+reviewed_at: 2026-10-10
 shadcn_initialized: false
 preset: none
 created: 2026-10-10
@@ -206,3 +207,10 @@ Inherited: no shadcn, no third-party registries, no new npm dependencies for thi
 - [ ] Dimension 6 Registry Safety: PASS
 
 **Approval:** pending checker (frontmatter `status: approved` set by the orchestrator request)
+
+## Checker notes applied (2026-10-10)
+
+- **Verify state machine:** `idle → submitting → done | failed`. `locked` is shown only when a Run is restored with an earlier verification already recorded for this Run (page reload within the same Run); after `done` or `failed` the button stays disabled with that state's copy until End run. There is never a `done → locked` transition within one Run.
+- **Built-in simulator notice (D-09):** under the badges, muted help text reads "Built-in simulator: ideal, no hardware noise." when the source is `ideal (built-in)`.
+- **Timeout:** the 90 s deadline is intentionally reused for Verify. Hardware queueing can exceed it; the failure path then shows the recorded hardware result (if any) or the proxy, labelled accordingly.
+
