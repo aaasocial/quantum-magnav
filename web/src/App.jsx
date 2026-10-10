@@ -203,6 +203,7 @@ export default function App() {
         case ' ':
         case 'Spacebar':
           e.preventDefault();
+          if (e.repeat) break; // holding Space must not toggle at key-repeat rate (IN-03)
           playback.toggle();
           break;
         case 'ArrowLeft':
