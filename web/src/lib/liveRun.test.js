@@ -70,7 +70,7 @@ function makeSim({
         return { ok: true, skipped: [...s.skipped] };
       case 'live_result':
         return result ?? {
-          ok: true, computed: ['tl', 'quantum'].concat(['raw', 'lowpass'].filter((d) => !s.skipped.includes(d))),
+          ok: true, line_id: '1003.02', sensor: 'mag_5_uc', computed: ['tl', 'quantum'].concat(['raw', 'lowpass'].filter((d) => !s.skipped.includes(d))),
           skipped: [...s.skipped], elapsed_s: clock.t / 1000, line: LINE_1003,
         };
       case 'live_cancel':
@@ -416,3 +416,15 @@ test('the driver yields once between live_start and the first live_step', async 
   assert.equal(res.ok, true);
   assert.equal(at[0], 1, 'first yield right after live_start');
 });
+
+for (const [what, patch] of [['line', { line: { ...LINE_1003, line: '1007.06' } }], ['sensor', { sensor: 'mag_4_uc' }]]) {
+  test(`a live_result for a different ${what} is InvalidShape and cancels`, async () => {
+    const base = { ok: true, line_id: '1003.02', sensor: 'mag_5_uc', computed: ['tl'], skipped: [], elapsed_s: 1, line: LINE_1003 };
+    const sim = makeSim({ result: { ...base, ...patch } });
+    const res = await runLive(deps(sim).args);
+    assert.equal(res.ok, false);
+    assert.equal(res.reason.name, 'InvalidShape');
+    assert.match(res.reason.message, /different line\/sensor/);
+    assert.equal(sim.names().at(-1), 'live_cancel');
+  });
+}

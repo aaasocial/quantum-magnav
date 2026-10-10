@@ -133,6 +133,9 @@ export async function runLive({
     enter(4);
     const res = checkOk(await call('live_result'), 'live_result');
     if (!res.line || typeof res.line !== 'object') throw namedError('InvalidShape', 'live_result has no line');
+    if (String(res.line.line) !== String(line) || String(res.sensor) !== String(sensor)) {
+      throw namedError('InvalidShape', 'live_result is for a different line/sensor'); // IN-02
+    }
     const problems = validate(res.line, sensor);
     if (problems.length) throw namedError('InvalidShape', problems.slice(0, 3).join('; '));
     return {
