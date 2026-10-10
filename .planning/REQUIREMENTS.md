@@ -15,24 +15,24 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 - [x] **PLAT-04**: Repo contains the MIT LICENSE, the verbatim attribution line "This effort is supported by Qollab & IonQ.", the Quantum Impact theme tag, and a disclosure section listing AI tools and libraries used, all committed in the first phase
 - [x] **PLAT-05**: All code is written during the build window; no pre-existing code is reused
 
-### Simulation
+### Real Data
 
-- [ ] **SIM-01**: User can generate a seeded synthetic crustal magnetic anomaly map (spectral Gaussian random field with power-law spectrum, upward continuation, ±100–500 nT scale, a few dipole blobs) as a 2D grid with bilinear interpolation
-- [ ] **SIM-02**: User can simulate a seeded drone flight at 10 Hz with turns and attitude manoeuvres, producing true position, heading/pitch/roll, direction cosines, a drifting INS (dead-reckoning) track, and the true clean magnetometer trace
-- [ ] **SIM-03**: Simulator injects physically motivated drone self-noise with separately adjustable terms: Tolles-Lawson attitude terms (permanent/induced/eddy), aliased motor/ESC tones modulated by throttle, current-dependent offset, white noise, and slow drift, yielding the raw sensor trace plus 2–4 current channels
-- [ ] **SIM-04**: Simulation output is split into a `Truth` object and a `Sensors` object so that no estimator function can accept truth; truth is used only by metrics
-- [ ] **SIM-05**: A map-roughness vs noise-level sweep selects a regime where raw-signal navigation fails, cleaned-signal navigation succeeds, and denoiser differences are visible in position error
+- [ ] **DATA-01**: A local-only preprocessing script `scripts/preprocess_sgl.py` (uses h5py, runs only on the dev machine, never imported by `magnav/` or shipped to Qollab) reads Flt1006, Flt1003 and Flt1007 from `data_raw/`, extracts calibration line 1006.08 (tt 55770–56609) and held-out lines 1003.02 (tt 50713–54497) and 1007.06 (tt 57770–63010), keeps only the needed channels (`tt`, `mag_1_c`, `mag_1_igrf`, `mag_3_uc`, `mag_4_uc`, `mag_5_uc`, `flux_a..d` x/y/z/t, `cur_*`, `ins_pitch`/`ins_roll`/`ins_yaw`, `ins_vn`/`ins_vw`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`), and decimates or crops so each output (`data/flt1006_line08.npz`, `data/flt1003_line02.npz`, `data/flt1007_line06.npz`) is under 2 MB
+- [ ] **DATA-02**: The same script crops MagNav.jl `Eastern_395.h5` and `Renfrew_395.h5` (395 m HAE, nT) to each held-out line's bounding box plus a margin and writes `data/map_eastern_395.npz` and `data/map_renfrew_395.npz` (nT grid, lon/lat vectors, validity mask), each under 2 MB; k-NN-filled cells are marked invalid, and EMAG2v3 (DOI 10.7289/V5H70CVX) is used at most as a coarse-map comparison, never as the navigation map
+- [ ] **DATA-03**: A provenance sidecar `data/provenance.json` records, per output file, the source file, line number, tt range, decimation factor, channel list and source-file SHA-256; reproducibility means the same input files plus the same script give byte-identical outputs, and a test asserts every file in `data/` is under 2 MB
+- [ ] **DATA-04**: `magnav/` loads the excerpts through literal path strings (e.g. `"data/flt1003_line02.npz"`) and splits each line into a `Truth` object (`mag_1_c`, `mag_1_igrf`, `lat`/`lon`, `utm_x`/`utm_y`/`utm_z`) and a `Sensors` object (cabin mags, fluxgates, `cur_*`, INS attitude and velocities, simulated INS track) so that no estimator or denoiser function can accept truth; truth is used only by metrics
+- [ ] **DATA-05**: A simulated INS-drift track integrates `ins_vn`/`ins_vw` from the last GPS fix at the jam time, adding a constant velocity bias and a random walk with documented parameters and a fixed recorded RNG state, because the recorded INS channels are GPS-aided and do not drift
 
 ### Classical Baselines
 
-- [ ] **BASE-01**: Tolles-Lawson ridge regression (permanent + induced + eddy terms from the vector mag, optional current columns, 0.1–0.9 Hz bandpass) cleans the raw trace and serves as the primary classical baseline
+- [ ] **BASE-01**: Tolles-Lawson ridge regression (permanent + induced + eddy terms from the fluxgate vector, optional `cur_*` columns, 0.1–0.9 Hz bandpass) fitted on calibration line 1006.08 compensates one cabin magnetometer toward the stinger reference (`mag_1_c`) and serves as the primary classical baseline
 - [ ] **BASE-02**: An equal-feature classical learner (RBF kernel ridge) trained on the TL residual with exactly the features and train/test split the quantum model uses serves as the fair comparison partner
-- [ ] **BASE-03**: A naive low-pass filter is reported as the floor
-- [ ] **BASE-04**: Models are trained on a calibration flight/seed and evaluated on a disjoint held-out flight/seed
+- [ ] **BASE-03**: A naive low-pass filter on the cabin magnetometer is reported as the floor
+- [ ] **BASE-04**: Models are trained on calibration line 1006.08 and evaluated only on held-out lines 1003.02 and 1007.06; denoisers predict `mag_1_c`, and the map-matching leg uses the `mag_1_igrf`-equivalent (IGRF + diurnal removed) cleaned signal
 
 ### Quantum Denoiser
 
-- [ ] **QNT-01**: A Qiskit fixed feature-map circuit on 4–6 qubits (≤3 entangling layers) encodes the drone-state features (direction cosines and derivatives, motor current, throttle) for each window
+- [ ] **QNT-01**: A Qiskit fixed feature-map circuit on 4–6 qubits (≤3 entangling layers) encodes the aircraft-state features (fluxgate direction cosines and their derivatives, plus `cur_*` current channels) for each window
 - [ ] **QNT-02**: Training features are computed with exact `qiskit.quantum_info.Statevector` locally, so training never calls `backend.run`; a classical ridge readout is fit on the TL residual
 - [ ] **QNT-03**: Inference submits all window circuits as exactly one batched `backend.run([...])` call (32–128 circuits, 100–500 shots), reads results via `get_counts()` (never `BackendSamplerV2`), and a test asserts `backend.run` is called exactly once
 - [ ] **QNT-04**: The quantum module accepts `backend` as an argument and runs without errors on IonQ Forte 1 (remote simulator) when a visitor presses Run on Qollab, and degrades gracefully on the built-in browser simulator
@@ -41,25 +41,26 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Navigation
 
-- [ ] **NAV-01**: A 2D particle filter (500–2000 particles, INS-drift motion model, Gaussian map-likelihood with σ set to the denoiser's residual std, systematic resampling) estimates position from `Sensors` and the map only
-- [ ] **NAV-02**: The filter is run once per denoiser output (raw, low-pass, TL, classical KRR, quantum) on identical seeds so position error can be compared across denoisers
+- [ ] **NAV-01**: Windowed-correlation (TERCOM-style) matching slides each cleaned-signal window over the Eastern_395 / Renfrew_395 map within a search region centred on the simulated INS-drift prior, picks the best-correlating offset, never matches through invalid (k-NN-filled) cells, and estimates position from `Sensors` and the map only
+- [ ] **NAV-02**: The matcher is run once per denoiser output (raw cabin, low-pass, TL, classical KRR, quantum) on identical held-out lines and segments so position error can be compared across denoisers
 - [ ] **NAV-03**: A "GPS jammed at t=X" event switches estimation to magnetic-only after that point, so the demo shows drift without MagNav and hold with it
 
 ### Metrics & Benchmarks
 
 - [ ] **METR-01**: Per denoiser, the pipeline reports signal RMSE and error std (nT), mean and final position error (m), CEP50/CEP95, and % time under an RNP-style threshold
-- [ ] **METR-02**: Results are reported over 5–10 seeds as mean ± std in a benchmark table that includes a negative-results section stating plainly where the quantum model ties or loses and why
-- [ ] **METR-03**: A nT-to-metres curve (position error vs injected signal RMSE) places each denoiser on the curve
-- [ ] **METR-04**: A training-set-size sweep (e.g. 20/50/100/200 samples) compares quantum vs classical KRR to identify any regime where quantum helps
-- [ ] **METR-05**: One command regenerates `results/metrics.json`, CSVs, and every figure from fixed seeds (reproducibility kit)
+- [ ] **METR-02**: Results are reported over N contiguous segments of held-out lines 1003.02 and 1007.06 (N = 5–10) as mean ± std in a benchmark table that includes a negative-results section stating plainly where the quantum model ties or loses and why
+- [ ] **METR-03**: A nT-to-metres curve (position error vs cleaned-signal RMSE) places each denoiser and each cabin sensor on the curve
+- [ ] **METR-04**: A training-set-size sweep (e.g. 20/50/100/200 windows subsampled from 1006.08) compares quantum vs classical KRR to identify any regime where quantum helps
+- [ ] **METR-05**: One command regenerates `results/metrics.json`, CSVs, and every figure from the committed `data/` excerpts (reproducibility kit; no seeds involved)
+- [ ] **METR-06**: A cabin-sensor sweep runs TL, KRR and quantum on Mag 3 vs Mag 4 vs Mag 5 and reports which cabin position each denoiser handles best
 
 ### Demo UI
 
 - [ ] **UI-01**: The React frontend plays back a single `RunArtifact` JSON (versioned schema, columnar, < 2 MB) through one frame player, whether the artifact was computed in-page by Pyodide or loaded from `data/precomputed_run.json`
-- [ ] **UI-02**: Map view shows the anomaly heatmap, true path (solid), estimated path (dashed), dead-reckoning-only path, drone icon, GPS-jammed marker, live position-error readout, and a downsampled particle cloud
+- [ ] **UI-02**: Map view shows the real anomaly heatmap tile (Eastern_395 or Renfrew_395, invalid cells visibly hatched or greyed), true path (solid), estimated path (dashed), dead-reckoning-only (simulated INS drift) path, drone icon, GPS-jammed marker, and live position-error readout; a downsampled particle cloud appears only if the optional particle filter (NAVX-03) is built
 - [ ] **UI-03**: Signal panel shows truth, raw, TL, classical KRR, and quantum-cleaned traces with toggles, an RMSE badge per series, and a residual subplot
 - [ ] **UI-04**: Metrics panel shows the benchmark table and provenance badges ("computed in-page" vs "precomputed replay"; IonQ backend name, shots, timestamp for the quantum leg; hardware result label)
-- [ ] **UI-05**: "Live" mode computes a fresh flight in-page (seed selectable) and animates it with `requestAnimationFrame`; if compute or the quantum job fails, the UI automatically falls back to the precomputed replay with identical visuals and a visible badge
+- [ ] **UI-05**: "Live" mode computes a selectable held-out line or segment (1003.02 or 1007.06) in-page and animates it with `requestAnimationFrame`; if compute or the quantum job fails, the UI automatically falls back to the precomputed replay with identical visuals and a visible badge
 - [ ] **UI-06**: A dual-drone view runs the raw and quantum-cleaned estimators on the same path side by side
 
 ### Accessibility
@@ -71,30 +72,31 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 ### Documentation & Submission
 
 - [ ] **DOCS-01**: README explains what the project does, the problem, how to run locally and on Qollab (select IonQ Forte 1 remote simulator; Chrome recommended), and how to replicate or extend it
-- [ ] **DOCS-02**: README contains a written summary per judging criterion (novelty, technical execution, impact, documentation), the honest framing that AQNav's quantum part is the sensor while ours is the compute, that data is synthetic, and that no quantum advantage is claimed
-- [ ] **DOCS-03**: README includes a real-practice mapping table (what we simulate vs MagNav Challenge / MagNav.jl / AQNav), a circuit figure with a 3-sentence encoding explanation, and a limitations / future-work section
+- [ ] **DOCS-02**: README contains a written summary per judging criterion (novelty, technical execution, impact, documentation), the honest framing that AQNav's quantum part is the sensor while ours is the compute, a real-data provenance statement (SGL 2020 flight data and MagNav.jl maps, cropped excerpts only), and that no quantum advantage is claimed
+- [ ] **DOCS-03**: README includes a real-practice mapping table (what is real data vs what we simulate, i.e. the GPS jam and INS drift, compared with MagNav Challenge / MagNav.jl / AQNav), a circuit figure with a 3-sentence encoding explanation, and a limitations / future-work section
 - [ ] **DOCS-04**: Project is published on Qollab.xyz under MIT with theme tag, repo link, and a short demo video recorded from the precomputed path, and is verified to run start to finish from a logged-out browser before the deadline
+- [ ] **DOCS-05**: README carries the citation "[DataSet Name] provided by the United States Air Force pursuant to Cooperative Agreement Number FA8750-19-2-1000 - [dates used]" filled in for the SGL 2020 dataset, the challenge-paper BibTeX (Gnadt et al., arXiv:2007.12158), MagNav.jl map attribution, the EMAG2v3 DOI if EMAG2 is used, notes the dataset's public-domain LICENSE.md and non-profit DATA_SHARING_AGREEMENT.md, and states that only cropped excerpts are redistributed
 
 ## v2 Requirements
 
 Deferred to "Extending this project". Tracked but not in current roadmap.
 
-### Data Realism
-
-- **DATA-01**: Ingest a real crustal anomaly map (NOAA EMAG2 / NAMAM) as an alternative map source
-- **DATA-02**: Load MagNav Challenge HDF5 flight data and run the pipeline on real sensor channels
-
 ### Navigation Fidelity
 
 - **NAVX-01**: Pinson 17-state INS error model with EKF
 - **NAVX-02**: Altitude dimension and upward continuation of the map to flight altitude
+- **NAVX-03**: Optional stretch: 2D particle filter (500–2000 particles, INS-drift motion model, Gaussian map likelihood with σ set to the denoiser's residual std, systematic resampling) as an alternative to windowed correlation
+
+### Data Extensions
+
+- **DATAX-01**: EMAG2v3 coarse-map comparison showing navigation error with a 4 km-altitude 2 arc-min map vs the 395 m Ottawa maps
 
 ### Quantum Extensions
 
 - **QNTX-01**: QAOA selection of Tolles-Lawson terms on ~20–24 qubits, benchmarked against greedy selection
 - **QNTX-02**: Quantum reservoir computing with temporal memory for the motor/eddy components
 - **QNTX-03**: Shot-noise and `forte-1` noise-model robustness study with simple mitigation (PSD projection, diagonal renormalization)
-- **QNTX-04**: Noise-source ablation table (TL / motor / current / white) per model
+- **QNTX-04**: Feature-group ablation table (TL attitude terms / fluxgate / current channels) per model
 
 ### Dev Tooling
 
@@ -106,7 +108,7 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Real magnetometer or phone sensor data | No quantum magnetometer available; synthetic keeps 40 h achievable and deterministic |
+| Collecting our own magnetometer or phone sensor data | No quantum magnetometer available; the public SGL 2020 dataset supplies real polluted and clean channels |
 | Simulating quantum sensor physics (NV-center / spin dynamics) on the QPU | Different project; the QPU does the denoising step |
 | Live QPU hardware calls during the judged demo | Queue and credit risk; one captured hardware result instead |
 | Training on the IonQ simulator or QPU | One `backend.run` per Run on Qollab; training is free locally via Statevector |
@@ -117,6 +119,10 @@ Explicitly excluded. Documented to prevent scope creep.
 | Auth, persistence, run history | Zero judging value for a single-user demo |
 | Claiming quantum advantage | False at this scale; costs credibility with technical judges |
 | filterpy, plotly, torch | Not available in Pyodide / over the 2 MB per-file cap |
+| Synthetic map generator, synthetic noise model, seeded flights, map-roughness sweep | Replaced by real SGL data and Ottawa maps (2026-10-10) |
+| Shipping raw SGL HDF5 or reading HDF5 on Qollab | 63–123 MB files exceed the 2 MB cap; data-sharing agreement; only cropped `.npz` excerpts ship |
+| Navigating through k-NN-filled map cells | Not real data |
+| EMAG2v3 as the navigation map | 4 km altitude, 2 arc-min: too coarse for 400 m flight |
 
 ## Traceability
 
@@ -129,11 +135,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAT-03 | Phase 1 | Complete |
 | PLAT-04 | Phase 1 | Complete |
 | PLAT-05 | Phase 1 | Complete |
-| SIM-01 | Phase 2 | Pending |
-| SIM-02 | Phase 2 | Pending |
-| SIM-03 | Phase 2 | Pending |
-| SIM-04 | Phase 2 | Pending |
-| SIM-05 | Phase 2 | Pending |
+| DATA-01 | Phase 2 | Pending |
+| DATA-02 | Phase 2 | Pending |
+| DATA-03 | Phase 2 | Pending |
+| DATA-04 | Phase 2 | Pending |
+| DATA-05 | Phase 2 | Pending |
 | BASE-01 | Phase 2 | Pending |
 | BASE-02 | Phase 2 | Pending |
 | BASE-03 | Phase 2 | Pending |
@@ -152,6 +158,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | METR-03 | Phase 5 | Pending |
 | METR-04 | Phase 5 | Pending |
 | METR-05 | Phase 5 | Pending |
+| METR-06 | Phase 5 | Pending |
 | UI-01 | Phase 3 | Pending |
 | UI-02 | Phase 3 | Pending |
 | UI-03 | Phase 3 | Pending |
@@ -165,12 +172,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOCS-02 | Phase 6 | Pending |
 | DOCS-03 | Phase 6 | Pending |
 | DOCS-04 | Phase 6 | Pending |
+| DOCS-05 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 41 total
-- Mapped to phases: 41
+- v1 requirements: 43 total
+- Mapped to phases: 43
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-09*
-*Last updated: 2026-10-09 after roadmap creation*
+*Last updated: 2026-10-10 after switching to real SGL flight data and Ottawa maps*

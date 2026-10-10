@@ -82,7 +82,9 @@ None yet.
 - React bundle has not yet run inside the Qollab sandbox (Phase 1 smoke test resolves; fallback is `main.py` Python-project submission)
 - Max circuits/gates per IonQ Forte 1 job undocumented (probe 32/64/128 in Phase 1)
 - Hardware credits for the QPU run unconfirmed (ask in #hackathon-help on Day 1; proxy fallback is the labeled `forte-1` noise model)
-- Pyodide performance of the particle filter in-browser is untested (keep particle counts moderate; precompute is the default)
+- Windowed-correlation (TERCOM-style) navigation is now the default; the particle filter is an optional stretch, and if built its Pyodide performance is untested (keep particle counts moderate; precompute is the default)
+- Raw data downloads incomplete: Flt1003, Flt1007 and the MagNav.jl `ottawa_area_maps` (Eastern_395.h5, Renfrew_395.h5) are not yet in `data_raw/`; Phase 2 preprocessing needs all of them (verify Flt1006_train.h5 finished downloading)
+- Map coverage unverified: confirm in Phase 2 preprocessing that lines 1003.02 and 1007.06 lie inside the valid (non-k-NN-filled) area of Eastern_395 / Renfrew_395
 
 ## Deferred Items
 
