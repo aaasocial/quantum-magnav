@@ -47,11 +47,42 @@ def _check_series(obj):
 
 
 @pytest.fixture(scope="module")
-def thin_artifact():
+def thin_result():
     from magnav.pipeline import run_pipeline
 
-    res = run_pipeline(sensors=("mag_5_uc", "mag_4_uc"), lines=("1003.02",), truncate=2000)
-    return build_run_artifact(res, load_provenance())
+    return run_pipeline(sensors=("mag_5_uc", "mag_4_uc"), lines=("1003.02",), truncate=2000)
+
+
+@pytest.fixture(scope="module")
+def thin_artifact(thin_result):
+    return build_run_artifact(thin_result, load_provenance())
+
+
+def test_provenance_from_run_config(thin_result, thin_artifact):
+    """WR-04: TERCOM / decimation provenance is read from the run, not duplicated literals."""
+    import copy
+
+    from magnav.pipeline import TERCOM_PARAMS
+
+    cfg = thin_result["config"]
+    fs = cfg["fs_hz"]
+    tc = thin_artifact["provenance"]["tercom"]
+    assert tc["window_s"] == TERCOM_PARAMS["window"] / fs
+    assert tc["stride_s"] == TERCOM_PARAMS["stride"] / fs
+    assert tc["search_m"] == 2 * TERCOM_PARAMS["half_width_m"]
+    assert tc["step_m"] == TERCOM_PARAMS["step_m"]
+    assert tc["gate"] == TERCOM_PARAMS["gate"]
+    assert tc["median"] == TERCOM_PARAMS["median"]
+    dec = thin_artifact["provenance"]["decimation"]
+    files = load_provenance()["files"]
+    assert all(info["decimation"] == dec for info in files.values() if "decimation" in info)
+    assert dec["fs_hz"] == fs
+    # a changed run config shows up in the artifact
+    res2 = {"config": copy.deepcopy(cfg), "lines": {}, "metrics_table": []}
+    res2["config"]["tercom"]["gate"] = 0.5
+    res2["config"]["tercom"]["window"] = 60
+    tc2 = build_run_artifact(res2, load_provenance())["provenance"]["tercom"]
+    assert tc2["gate"] == 0.5 and tc2["window_s"] == 60 / fs
 
 
 def test_artifact_from_truncated_run(thin_artifact):

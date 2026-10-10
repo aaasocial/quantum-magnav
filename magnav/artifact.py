@@ -20,17 +20,7 @@ CODE_VERSION = "0.1.0"
 TITLE = "Quantum MagNav - SGL 2020 classical pipeline"
 SENSORS = ("mag_5_uc", "mag_4_uc")
 DENOISERS = ("raw", "lowpass", "tl", "tl_currents", "krr", "quantum")
-TERCOM_PROVENANCE = {
-    "window_s": 60,
-    "stride_s": 10,
-    "search_m": 3000,
-    "step_m": 60,
-    "gate": 0.85,
-    "median": 3,
-    "prior": "recursive_ins_propagated",
-    "score": "ncc_mean_removed",
-    "invalid_cells": "excluded",
-}
+TERCOM_DESCRIPTION = {"score": "ncc_mean_removed", "invalid_cells": "excluded"}  # fixed by nav.tercom's code
 REQUIRED_TOP = (
     "schema_version", "title", "sensors", "default_sensor", "denoisers", "thresholds_m",
     "provenance", "lines", "metrics_table", "acceptance",
@@ -45,6 +35,38 @@ def downsample_idx(n: int, jam_idx: int, max_points: int = MAX_POINTS) -> np.nda
     step = max(1, math.ceil(n / max_points))
     idx = np.union1d(np.arange(0, n, step), [int(jam_idx), n - 1])
     return idx.astype(np.int64)
+
+
+def _num(v):
+    """float -> int when integral, so 60.0 s serialises as 60."""
+    v = float(v)
+    return int(v) if v.is_integer() else v
+
+
+def tercom_provenance(tercom_cfg: dict, fs: float) -> dict:
+    """TERCOM provenance built from the run's own config (samples -> seconds with fs)."""
+    c = tercom_cfg
+    return {
+        "window_s": _num(c["window"] / fs),
+        "stride_s": _num(c["stride"] / fs),
+        "window_samples": int(c["window"]),
+        "stride_samples": int(c["stride"]),
+        "search_m": _num(2.0 * c["half_width_m"]),
+        "step_m": _num(c["step_m"]),
+        "gate": float(c["gate"]),
+        "median": int(c["median"]),
+        "prior": c["prior"],
+        **TERCOM_DESCRIPTION,
+    }
+
+
+def decimation_provenance(provenance: dict) -> dict:
+    """Decimation read from data/provenance.json (one dict if every line agrees, else per file)."""
+    dec = {p: info["decimation"] for p, info in provenance.get("files", {}).items() if "decimation" in info}
+    uniq = {tuple(sorted(d.items())) for d in dec.values()}
+    if len(uniq) == 1:
+        return dict(next(iter(dec.values())))
+    return dec
 
 
 def _r(a, nd: int) -> list:
@@ -192,7 +214,7 @@ def build_run_artifact(result: dict, provenance: dict) -> dict:
         "code_version": CODE_VERSION,
         "data_provenance_file": "data/provenance.json",
         "sources": _sources(provenance),
-        "decimation": {"factor": 5, "method": "block_mean", "fs_hz": 2.0},
+        "decimation": decimation_provenance(provenance),
         "seed": cfg["seed"],
         "jam_fraction": cfg["jam_fraction"],
         "cal_line": cfg["cal_line"],
@@ -209,7 +231,7 @@ def build_run_artifact(result: dict, provenance: dict) -> dict:
         "tl": cfg["tl"],
         "krr": cfg["krr"],
         "quantum": cfg["quantum"],
-        "tercom": dict(TERCOM_PROVENANCE),
+        "tercom": tercom_provenance(cfg["tercom"], cfg["fs_hz"]),
     }
     obj = {
         "schema_version": SCHEMA_VERSION,

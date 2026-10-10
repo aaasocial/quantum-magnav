@@ -202,6 +202,7 @@ def run_pipeline(
         "seed": int(seed),
         "jam_fraction": JAM_FRACTION,
         "cal_line": CAL_LINE,
+        "fs_hz": float(cal_sensors.fs),
         "sensors": list(sensors),
         "default_sensor": DEFAULT_SENSOR,
         "thresholds_m": list(THRESHOLDS_M),
