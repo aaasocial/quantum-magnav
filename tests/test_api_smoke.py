@@ -154,3 +154,15 @@ def test_bad_inputs_return_json_not_raise(n, s):
     out = json.loads(api.run_bell_batch(spy, n, s))
     assert out["ok"] is False and out["error_type"] == "ValueError"
     assert spy.calls == 0
+
+
+def test_backend_info_rejects_nan_in_data_file(tmp_path, monkeypatch):
+    bad = tmp_path / "smoke.json"
+    bad.write_text('{"x": NaN}', encoding="utf-8")
+    monkeypatch.setattr(api, "SMOKE_DATA", str(bad))
+    raw = api.backend_info(SpySim())
+
+    def reject(constant):  # mimic JS JSON.parse, which has no NaN/Infinity
+        raise ValueError(constant)
+
+    assert json.loads(raw, parse_constant=reject)["data_file"].startswith("error:")

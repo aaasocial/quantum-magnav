@@ -62,7 +62,11 @@ def backend_info(backend) -> str:
             info["data_file"] = json.load(f)
     except Exception as e:  # noqa: BLE001 - report, don't crash
         info["data_file"] = f"error: {type(e).__name__}: {e}"
-    return json.dumps(info)
+    try:
+        return json.dumps(info, allow_nan=False)  # JS JSON.parse rejects NaN/Infinity
+    except ValueError as e:
+        info["data_file"] = f"error: {SMOKE_DATA} contains NaN or Infinity ({e})"
+        return json.dumps(info, allow_nan=False)
 
 
 def _safe_value(value):
@@ -136,9 +140,9 @@ def run_bell_batch(backend, n_circuits=2, shots=200) -> str:
         result = job.result()
         counts = [dict(result.get_counts(i)) for i in range(n)]  # never the bare form
         ordering_ok = all(
-            max(c, key=c.get) in (("00", "11") if i % 2 == 0 else ("01", "10"))
+            bool(c) and max(c, key=c.get) in (("00", "11") if i % 2 == 0 else ("01", "10"))
             for i, c in enumerate(counts)
-        )
+        )  # an empty counts dict fails the check instead of raising and losing the counts
         return json.dumps(
             {
                 "ok": True,
