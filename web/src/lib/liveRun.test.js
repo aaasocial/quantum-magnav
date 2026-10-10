@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { validateLine } from './artifact.js';
-import { DEADLINE_MS, SKIP_PROJECTION_MS, createLiveRunner, runLive } from './liveRun.js';
+import { DEADLINE_MS, SKIP_PROJECTION_MS, createLiveRunner, liveProgress, runLive } from './liveRun.js';
 
 const ARTIFACT = JSON.parse(readFileSync(new URL('../../../data/precomputed_run.json', import.meta.url), 'utf8'));
 const LINE_1003 = ARTIFACT.lines.find((l) => l.line === '1003.02');
@@ -336,4 +336,22 @@ test('createLiveRunner.cancel stops at the next Python call, cancels in Python a
   assert.equal(runner.isInFlight(), false);
   const again = await runner.start({ line, sensor, simulateFailure, onStage, onStep });
   assert.equal(again.ok, true, 'a cancel does not leak into the next run');
+});
+
+test('liveProgress reports the current denoiser\'s own windows and its position k of K', () => {
+  const step = {
+    stage: 3, denoiser: 'raw', windows_done: 72, windows_total: 278, fitting: null,
+    per_denoiser: { tl: [278, 278], raw: [72, 278], lowpass: [0, 278] },
+  };
+  assert.deepEqual(liveProgress(step), {
+    windowsDone: 72, windowsTotal: 278, denoiser: 'raw', denoiserIndex: 2, denoiserCount: 3, fitting: null,
+  });
+  // After skips only the remaining denoisers count.
+  const skipped = liveProgress({ stage: 3, denoiser: 'tl', windows_done: 10, windows_total: 278, per_denoiser: { tl: [10, 278] } });
+  assert.equal(skipped.denoiserIndex, 1);
+  assert.equal(skipped.denoiserCount, 1);
+  // Stage 2 has no denoiser yet.
+  const fit = liveProgress({ stage: 2, fitting: 'tl', denoiser: null, windows_done: 0, windows_total: 278, per_denoiser: {} });
+  assert.equal(fit.denoiserIndex, 0);
+  assert.equal(fit.fitting, 'tl');
 });

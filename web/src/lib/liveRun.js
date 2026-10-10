@@ -123,6 +123,24 @@ export async function runLive({
   }
 }
 
+// Progress for the status strip from one live_step JSON (WR-04): the CURRENT denoiser's own
+// window count (never a sum across denoisers) and its position k of K in the run order.
+export function liveProgress(step) {
+  const per = step?.per_denoiser ?? {};
+  const order = Object.keys(per);
+  const denoiser = step?.denoiser ?? null;
+  const k = denoiser ? order.indexOf(denoiser) + 1 : 0;
+  const own = k > 0 && Array.isArray(per[denoiser]) ? per[denoiser] : null;
+  return {
+    windowsDone: own ? own[0] : (step?.windows_done ?? 0),
+    windowsTotal: own ? own[1] : (step?.windows_total ?? 0),
+    denoiser,
+    denoiserIndex: k,
+    denoiserCount: order.length,
+    fitting: step?.fitting ?? null,
+  };
+}
+
 // One live run at a time. The in-flight flag is set before the first await (Pitfall 8), so a
 // second start() is refused without touching Python. cancel() asks the run in flight to stop
 // at its next Python call and resolves with that run's (Cancelled) result; null when idle.

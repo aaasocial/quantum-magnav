@@ -4,7 +4,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { callPy } from '../bridge.js';
 import { validateLine } from '../lib/artifact.js';
-import { STEP_BUDGET_MS, createLiveRunner } from '../lib/liveRun.js';
+import { STEP_BUDGET_MS, createLiveRunner, liveProgress } from '../lib/liveRun.js';
 import { probeLiveCall } from '../probe.js';
 
 // One macrotask turn so input and paint can run between Python chunks (no timers, no rAF).
@@ -26,7 +26,7 @@ const runner = createLiveRunner({
   validate: validateLine,
 });
 
-const EMPTY = { windowsDone: 0, windowsTotal: 0, denoiser: null, fitting: null };
+const EMPTY = { windowsDone: 0, windowsTotal: 0, denoiser: null, denoiserIndex: 0, denoiserCount: 0, fitting: null };
 
 export function useLiveRun() {
   const [inFlight, setInFlight] = useState(false);
@@ -56,13 +56,7 @@ export function useLiveRun() {
         if (step.stage === 3) stage3Ms += callMs;
         const per = step.per_denoiser ?? {};
         if (Object.keys(per).length) lastPer = per;
-        const vals = Object.values(per);
-        setProgress({
-          windowsDone: vals.reduce((s, p) => s + p[0], 0),
-          windowsTotal: vals.reduce((s, p) => s + p[1], 0),
-          denoiser: step.denoiser ?? null,
-          fitting: step.fitting ?? null,
-        });
+        setProgress(liveProgress(step));
       },
     });
     const windows = Object.values(lastPer).reduce((s, p) => s + p[0], 0);

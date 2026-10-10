@@ -19,7 +19,7 @@ const STAGE_TEXT = {
   3: 'Step 3 of 4: matching against the map…',
   4: 'Step 4 of 4: packaging results…',
 };
-const DEN_LABELS = { tl: 'Tolles-Lawson (TL)', raw: 'Raw cabin', lowpass: 'Low-pass' };
+const DEN_LABELS = { tl: 'Tolles-Lawson (TL)', raw: 'Raw cabin', lowpass: 'Low-pass', quantum: 'quantum slot' };
 
 // Live progress message for the status strip (UI-SPEC "Live progress stages").
 export function stageMessage(stage, fitting) {
@@ -27,14 +27,22 @@ export function stageMessage(stage, fitting) {
   return stage === 2 && FIT_LABELS[fitting] ? `${base} Now ${FIT_LABELS[fitting]}.` : base;
 }
 
+// Counter for the CURRENT denoiser only (WR-04): its own windows, then its place in the run.
+export function progressText({ windowsDone, windowsTotal, denoiser, denoiserIndex, denoiserCount }) {
+  const label = DEN_LABELS[denoiser] ? ` (${DEN_LABELS[denoiser]})` : '';
+  const position = denoiserIndex > 0 && denoiserCount > 0 ? `, denoiser ${denoiserIndex} of ${denoiserCount}` : '';
+  return `${windowsDone} of ${windowsTotal} map-matching windows${label}${position}`;
+}
+
 function LiveProgress({ progress, reduced }) {
   const { windowsDone, windowsTotal, denoiser } = progress;
   if (!windowsTotal) return null;
-  const counter = `${windowsDone} of ${windowsTotal} map-matching windows${DEN_LABELS[denoiser] ? ` (${DEN_LABELS[denoiser]})` : ''}`;
+  const counter = progressText(progress);
+  const label = DEN_LABELS[denoiser] ? `Map matching progress, ${DEN_LABELS[denoiser]}` : 'Map matching progress';
   return (
     <div className="live-progress">
       {!reduced && (
-        <progress max={windowsTotal} value={Math.min(windowsDone, windowsTotal)} aria-label="Map matching progress" />
+        <progress max={windowsTotal} value={Math.min(windowsDone, windowsTotal)} aria-label={label} />
       )}
       <span className="live-counter">{counter}</span>
     </div>
