@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the Qollab upload zips from an explicit allowlist and check Qollab limits.
-#   dist/qollab-upload.zip       JS project (React page + Python package)
+#   dist/qollab-upload.zip       JS project (React page + Python package), no main.py
 #   dist/qollab-fallback-py.zip  Python project (main.py), no index.html/main.js/main.css
 set -euo pipefail
 
@@ -26,9 +26,10 @@ DATA_FILES=(data/*)
 shopt -u nullglob
 [ "${#PY_FILES[@]}" -gt 0 ] || fail "no magnav/*.py files found"
 
-COMMON=(main.py requirements.txt LICENSE README.md "${PY_FILES[@]}" "${DATA_FILES[@]}")
+COMMON=(requirements.txt LICENSE README.md "${PY_FILES[@]}" "${DATA_FILES[@]}")
+# main.py stays out of the JS upload: if Qollab ran it, it could take the run's one IonQ job.
 UPLOAD=(index.html main.js main.css "${COMMON[@]}")
-FALLBACK=("${COMMON[@]}")
+FALLBACK=(main.py "${COMMON[@]}")
 
 check_sources() {
   local f size
@@ -55,9 +56,10 @@ check_zip() {
   printf '%s\n' "$listing"
 }
 
-has_entry() { zipinfo -1 "$1" | grep -qx "$2"; }
+# Exact, literal match. No -q: an early grep exit would SIGPIPE zipinfo and trip pipefail.
+has_entry() { zipinfo -1 "$1" | grep -xF -- "$2" >/dev/null; }
 
-check_sources "${UPLOAD[@]}"
+check_sources "${UPLOAD[@]}" main.py
 
 zip -X -q dist/qollab-upload.zip "${UPLOAD[@]}"
 zip -X -q dist/qollab-fallback-py.zip "${FALLBACK[@]}"
@@ -72,6 +74,9 @@ for f in index.html main.js; do
   fi
 done
 has_entry dist/qollab-fallback-py.zip main.py || fail "dist/qollab-fallback-py.zip is missing main.py"
+if has_entry dist/qollab-upload.zip main.py; then
+  fail "dist/qollab-upload.zip must not contain main.py (it could use the run's one IonQ job)"
+fi
 
 ls -l dist/qollab-upload.zip dist/qollab-fallback-py.zip
 echo "OK: dist/qollab-fallback-py.zip ready (Python-project fallback)"
