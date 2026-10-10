@@ -319,8 +319,8 @@ test('createLiveRunner.cancel stops at the next Python call, cancels in Python a
   let steps = 0;
   const { line, sensor, simulateFailure, onStage, onStep, ...rest } = deps(sim, {
     yieldFn: async () => {
-      steps += 1;
-      if (steps === 3) cancelP = runner.cancel();
+      steps += 1; // yield 1 follows live_start, yield k+1 follows the k-th live_step
+      if (steps === 4) cancelP = runner.cancel();
     },
   }).args;
   runner = createLiveRunner(rest);
@@ -407,4 +407,12 @@ test('watchdog: cancel() ends the run while a call is still pending', async () =
   assert.equal(await run, res);
   assert.ok(res.elapsedMs < DEADLINE_MS);
   assert.equal(runner.isInFlight(), false);
+});
+
+test('the driver yields once between live_start and the first live_step', async () => {
+  const sim = makeSim();
+  const at = [];
+  const res = await runLive(deps(sim, { yieldFn: async () => { at.push(sim.calls.length); } }).args);
+  assert.equal(res.ok, true);
+  assert.equal(at[0], 1, 'first yield right after live_start');
 });

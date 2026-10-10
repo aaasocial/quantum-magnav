@@ -87,6 +87,7 @@ export async function runLive({
   try {
     enter(1);
     checkOk(await call('live_start', line, sensor, Boolean(simulateFailure)), 'live_start');
+    await yieldFn(); // let "Step 1 of 4" paint and be announced before stage 2 starts (IN-01)
 
     for (;;) {
       checkDeadline();
