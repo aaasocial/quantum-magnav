@@ -124,13 +124,53 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | | |
+| PLAT-01 | Phase 1 | Pending |
+| PLAT-02 | Phase 1 | Pending |
+| PLAT-03 | Phase 1 | Pending |
+| PLAT-04 | Phase 1 | Pending |
+| PLAT-05 | Phase 1 | Pending |
+| SIM-01 | Phase 2 | Pending |
+| SIM-02 | Phase 2 | Pending |
+| SIM-03 | Phase 2 | Pending |
+| SIM-04 | Phase 2 | Pending |
+| SIM-05 | Phase 2 | Pending |
+| BASE-01 | Phase 2 | Pending |
+| BASE-02 | Phase 2 | Pending |
+| BASE-03 | Phase 2 | Pending |
+| BASE-04 | Phase 2 | Pending |
+| QNT-01 | Phase 4 | Pending |
+| QNT-02 | Phase 4 | Pending |
+| QNT-03 | Phase 4 | Pending |
+| QNT-04 | Phase 4 | Pending |
+| QNT-05 | Phase 4 | Pending |
+| QNT-06 | Phase 4 | Pending |
+| NAV-01 | Phase 2 | Pending |
+| NAV-02 | Phase 2 | Pending |
+| NAV-03 | Phase 2 | Pending |
+| METR-01 | Phase 2 | Pending |
+| METR-02 | Phase 5 | Pending |
+| METR-03 | Phase 5 | Pending |
+| METR-04 | Phase 5 | Pending |
+| METR-05 | Phase 5 | Pending |
+| UI-01 | Phase 3 | Pending |
+| UI-02 | Phase 3 | Pending |
+| UI-03 | Phase 3 | Pending |
+| UI-04 | Phase 4 | Pending |
+| UI-05 | Phase 3 | Pending |
+| UI-06 | Phase 5 | Pending |
+| A11Y-01 | Phase 3 | Pending |
+| A11Y-02 | Phase 3 | Pending |
+| A11Y-03 | Phase 5 | Pending |
+| DOCS-01 | Phase 6 | Pending |
+| DOCS-02 | Phase 6 | Pending |
+| DOCS-03 | Phase 6 | Pending |
+| DOCS-04 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 41 total
-- Mapped to phases: 0
-- Unmapped: 41 ⚠️
+- Mapped to phases: 41
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-10-09*
-*Last updated: 2026-10-09 after initial definition*
+*Last updated: 2026-10-09 after roadmap creation*
