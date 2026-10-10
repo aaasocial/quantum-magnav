@@ -3,6 +3,13 @@
 One shared downsample index per line; metres rounded to integers, nT to 0.1, t to 0.1 s,
 ncc to 3 decimals, metrics to 0.1. NaN/inf become null; no wall-clock timestamps, so the
 same run produces the same bytes (Pitfall 11).
+
+Nullable fields consumers must handle:
+- estimates[sensor][denoiser].ncc[i] is null when every candidate position in window i
+  touched an invalid map cell (best score -inf). Such a window is never accepted, so
+  null ncc implies accepted[i] == 0 (checked by validate_artifact).
+- metrics values (and metrics_table cells) may be null, e.g. the signal columns of the
+  dead_reckoning row.
 """
 
 import json
@@ -299,6 +306,9 @@ def validate_artifact(obj: dict) -> list:
                 lens = {len(e.get(k, [])) for k in ("window_t", "ncc", "accepted")}
                 if len(lens) != 1:
                     errs.append(f"line {lid}: {s}/{d} window arrays differ in length")
+                bad = [i for i, (c, a) in enumerate(zip(e.get("ncc", []), e.get("accepted", []))) if c is None and a]
+                if bad:
+                    errs.append(f"line {lid}: {s}/{d} null ncc in accepted windows {bad[:5]}")
         for name, v in series.items():
             if len(v) != n:
                 errs.append(f"line {lid}: {name} has {len(v)} points, t has {n}")

@@ -94,6 +94,18 @@ def test_artifact_from_truncated_run(thin_artifact):
     _check_series(thin_artifact)
 
 
+def test_null_ncc_only_in_rejected_windows(thin_artifact):
+    """IN-10: a null ncc (all candidates invalid) must never be an accepted window."""
+    import copy
+
+    obj = copy.deepcopy(thin_artifact)
+    e = obj["lines"][0]["estimates"]["mag_5_uc"]["tl"]
+    e["ncc"][0], e["accepted"][0] = None, 0
+    assert validate_artifact(obj) == []
+    e["accepted"][0] = 1
+    assert any("null ncc" in m for m in validate_artifact(obj))
+
+
 def test_dumps_deterministic(thin_artifact):
     a, b = dumps_artifact(thin_artifact), dumps_artifact(thin_artifact)
     assert a == b
