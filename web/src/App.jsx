@@ -9,10 +9,14 @@ const INFO_FIELDS = [
 ];
 const IONQ_CIRCUITS_HELP = "Qollab's IonQ proxy accepts only single-circuit jobs, so IonQ runs use 1 circuit.";
 const IONQ_LOCK_MESSAGE = 'IonQ allows one job per run. Press Stop, then Run, to submit another.';
+const RUN_ENDED_MESSAGE = 'This run has ended. Press Stop, then Run, to start a new one.';
+const KEEPALIVE_IDLE_MS = 10 * 60 * 1000; // bound on how long an idle run is kept alive
 
-// Resolved after the first IonQ job finishes; main.jsx awaits it to keep the Qollab run alive.
-let resolveFirstJobDone;
-export const firstJobDone = new Promise((resolve) => { resolveFirstJobDone = resolve; });
+// main.jsx awaits runDone to keep the Qollab run alive. It resolves on every terminal state:
+// the IonQ job finished, no backend, backend_info failed, or the idle bound was reached
+// with no job in flight. Resolving twice is harmless.
+let resolveRunDone;
+export const runDone = new Promise((resolve) => { resolveRunDone = resolve; });
 
 function show(value) {
   if (value === null || value === undefined) return 'none';
@@ -30,7 +34,31 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [ionqLocked, setIonqLocked] = useState(false);
   const [result, setResult] = useState(null);
+  const [runEnded, setRunEnded] = useState(false);
   const submitted = useRef(false); // synchronous guard against double clicks
+  const busyRef = useRef(false); // synchronous "job in flight" flag
+  const idleExpired = useRef(false);
+
+  function endRun(message) {
+    setRunEnded(true);
+    if (message) setStatus(message);
+    resolveRunDone();
+  }
+
+  useEffect(() => {
+    if (!qBackend) {
+      endRun(); // nothing can ever be submitted; do not hold the run open
+      return;
+    }
+    const timer = setTimeout(() => {
+      idleExpired.current = true;
+      // Never end the run under an in-flight job; submit()'s finally ends it instead.
+      if (!busyRef.current) {
+        endRun(`Keep-alive limit (${KEEPALIVE_IDLE_MS / 60000} min) reached. ${RUN_ENDED_MESSAGE}`);
+      }
+    }, KEEPALIVE_IDLE_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!qBackend) return;
@@ -42,7 +70,7 @@ export default function App() {
         setInfo(data);
         setStatus(`Backend ready: ${data.name}. Choose circuits and shots, then submit one job.`);
       } catch (e) {
-        if (!cancelled) setStatus(`Error: ${e?.name ?? 'Error'}: ${e?.message ?? e}`);
+        if (!cancelled) endRun(`Error: ${e?.name ?? 'Error'}: ${e?.message ?? e}. ${RUN_ENDED_MESSAGE}`);
       }
     })();
     return () => { cancelled = true; };
@@ -53,11 +81,14 @@ export default function App() {
   useEffect(() => {
     if (isIonq) setNCircuits(1);
   }, [isIonq]);
-  const disabled = !qBackend || !info || busy || ionqLocked;
+
+  const disabled = !qBackend || !info || busy || ionqLocked || runEnded;
 
   async function submit() {
-    if (disabled || (isIonq && submitted.current)) return;
+    // submitted.current blocks a second click before React re-renders, on every backend.
+    if (disabled || submitted.current) return;
     submitted.current = true;
+    busyRef.current = true;
     const n = isIonq ? 1 : nCircuits; // never send a multi-circuit job to IonQ
     setBusy(true);
     setResult(null);
@@ -77,8 +108,16 @@ export default function App() {
       if (isIonq) message += ` ${IONQ_LOCK_MESSAGE}`;
       setStatus(message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
-      if (isIonq) resolveFirstJobDone();
+      if (isIonq) {
+        resolveRunDone(); // IonQ: one job per run, so the run is over
+      } else {
+        submitted.current = false; // simulators allow further jobs
+        if (idleExpired.current) {
+          endRun(`Keep-alive limit (${KEEPALIVE_IDLE_MS / 60000} min) reached. ${RUN_ENDED_MESSAGE}`);
+        }
+      }
     }
   }
 
