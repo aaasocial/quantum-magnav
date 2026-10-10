@@ -33,7 +33,8 @@ export const jamText = (t) => `GPS jammed at ${int(t)} seconds. Navigating by ma
 export const readoutText = (t, trackLabel, err, drErr) =>
   `${int(t)} seconds. Position error, ${trackLabel}: ${int(err)} metres. Dead reckoning: ${int(drErr)} metres.`;
 
-export const modeText = (badge) => `Mode: ${badge}.`;
+// A trailing ellipsis in the badge ("computing in-page…") is dropped so speech ends on one full stop.
+export const modeText = (badge) => `Mode: ${String(badge).replace(/…$/, '')}.`;
 
 export const stageText = (n) => `Step ${int(n)} of 4.`;
 

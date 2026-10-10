@@ -9,6 +9,8 @@ import { LINE_LABELS, SENSOR_LABELS, SERIES, SERIES_ORDER } from '../theme.js';
 export const SPEEDS = [10, 60, 300];
 const MAG4_HELP = 'Mag 4 sits closer to aircraft noise, so errors are larger. Results are shown unedited.';
 const UNAVAILABLE_HELP = 'Not computed in live mode (skipped for time). Shown in the precomputed replay.';
+const LIVE_HELP = 'Computes this line and sensor in your browser (up to 90 s). If it fails, the precomputed replay is shown instead.';
+const LIVE_NO_BACKEND_HELP = 'Run live needs a backend: press Run on Qollab and pick one. The replay works without it.';
 
 function PlayGlyph({ playing }) {
   return (
@@ -114,7 +116,9 @@ export default function ControlBar({
   speed,
   view,
   disabled = false,
+  selectionLocked = false,
   seriesDisabled = false,
+  live = null,
   onLineChange,
   onSensorChange,
   onMapTrackChange,
@@ -129,6 +133,8 @@ export default function ControlBar({
   const sliderId = useId();
   const speedId = useId();
   const unavailableHelpId = useId();
+  const liveHelpId = useId();
+  const simulateId = useId();
   const isAvailable = (k) => !view || view.available.has(k);
   const anyUnavailable = view ? SERIES_ORDER.some((k) => !view.available.has(k)) : false;
   const mag4 = sensor === 'mag_4_uc';
@@ -138,7 +144,7 @@ export default function ControlBar({
       <div className="control-row">
         <div className="field">
           <label htmlFor={lineId}>Flight line</label>
-          <select id={lineId} value={line} onChange={(e) => onLineChange(e.target.value)} disabled={disabled}>
+          <select id={lineId} value={line} onChange={(e) => onLineChange(e.target.value)} disabled={disabled || selectionLocked}>
             {lines.map((id) => <option key={id} value={id}>{LINE_LABELS[id] ?? id}</option>)}
           </select>
         </div>
@@ -148,7 +154,7 @@ export default function ControlBar({
             id={sensorId}
             value={sensor}
             onChange={(e) => onSensorChange(e.target.value)}
-            disabled={disabled}
+            disabled={disabled || selectionLocked}
             aria-describedby={mag4 ? sensorHelpId : undefined}
           >
             {sensors.map((s) => <option key={s} value={s}>{SENSOR_LABELS[s] ?? s}</option>)}
@@ -178,9 +184,39 @@ export default function ControlBar({
             {SPEEDS.map((s) => <option key={s} value={s}>{`${s}×`}</option>)}
           </select>
         </div>
+        {live && (
+          <div className="field field-button">
+            <button
+              type="button"
+              className="btn-primary run-live"
+              onClick={live.onRun}
+              disabled={!live.enabled}
+              aria-describedby={liveHelpId}
+            >
+              Run live in-page
+            </button>
+          </div>
+        )}
         {children}
       </div>
       {mag4 && <p id={sensorHelpId} className="help">{MAG4_HELP}</p>}
+      {live && (
+        <div className="live-extra">
+          <p id={liveHelpId} className="help">{live.hasBackend ? LIVE_HELP : LIVE_NO_BACKEND_HELP}</p>
+          <details className="demo-options">
+            <summary>Demo options</summary>
+            <div className="demo-options-body">
+              <input
+                id={simulateId}
+                type="checkbox"
+                checked={live.simulateFailure}
+                onChange={(e) => live.onSimulateFailureChange(e.target.checked)}
+              />
+              <label htmlFor={simulateId}>Simulate a compute failure</label>
+            </div>
+          </details>
+        </div>
+      )}
       <fieldset className="series-fieldset" disabled={seriesDisabled}>
         <legend>Signal series</legend>
         <div className="series-list">

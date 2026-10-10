@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { callPyText } from '../bridge.js';
 import { validateArtifact } from '../lib/artifact.js';
+import { measureFrames } from '../probe.js';
 
 export function useArtifact() {
   const [state, setState] = useState({ status: 'loading', artifact: null, error: null });
@@ -10,7 +11,11 @@ export function useArtifact() {
     const t0 = performance.now();
     (async () => {
       try {
-        const res = JSON.parse(await callPyText('artifact_json'));
+        const call = await measureFrames(() => callPyText('artifact_json'));
+        console.log('[probe] main_thread', JSON.stringify({
+          call: 'artifact_json', ms: call.ms, frames: call.frames, maxGapMs: call.maxGapMs,
+        }));
+        const res = JSON.parse(call.result);
         if (res?.ok !== true) {
           throw new Error(res?.error_type ? `${res.error_type}: ${res.error}` : String(res?.error ?? 'artifact_json failed'));
         }

@@ -2,7 +2,7 @@
 // Qollab keep-alive. Per-frame state lives in the playback store, never in App state.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ControlBar from './components/ControlBar.jsx';
-import StatusStrip from './components/StatusStrip.jsx';
+import StatusStrip, { badgeText } from './components/StatusStrip.jsx';
 import MapView from './components/MapView.jsx';
 import SignalPanel from './components/SignalPanel.jsx';
 import MetricsTable from './components/MetricsTable.jsx';
@@ -10,12 +10,15 @@ import TextAlternatives from './components/TextAlternatives.jsx';
 import JamBanner from './components/JamBanner.jsx';
 import Announcer, { announce } from './components/Announcer.jsx';
 import { useArtifact } from './hooks/useArtifact.js';
+import { useLiveRun } from './hooks/useLiveRun.js';
 import { useReducedMotion } from './hooks/useReducedMotion.js';
 import { playback } from './hooks/usePlayback.js';
 import { drErrorAt, errorAt, lineView, validateLine } from './lib/artifact.js';
 import {
-  createThrottle, finishedText, jamText, loadedText, pausedText, playText, readoutText, selectionText,
+  createThrottle, finishedText, jamText, liveFailedText, loadedText, modeText, pausedText, playText, readoutText,
+  selectionText, stageText,
 } from './lib/announce.js';
+import { qBackend } from './bridge.js';
 import { logFrameProbe, logTimerProbe } from './probe.js';
 import { SENSOR_LABELS, SERIES } from './theme.js';
 
@@ -47,7 +50,11 @@ export default function App() {
   const [mapTrack, setMapTrack] = useState(DEFAULT_TRACK);
   const [visible, setVisible] = useState(() => new Set(DEFAULT_VISIBLE));
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
-  const [mode] = useState('precomputed');
+  const [mode, setMode] = useState('precomputed');
+  const [liveOverride, setLiveOverride] = useState(null); // {line, sensor, data} from live_result
+  const [liveDanger, setLiveDanger] = useState(null);
+  const [simulateFailure, setSimulateFailure] = useState(false);
+  const live = useLiveRun();
   const [runEnded, setRunEnded] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const endedRef = useRef(false);
@@ -56,11 +63,14 @@ export default function App() {
 
   const { view, viewError } = useMemo(() => {
     if (!artifact || !activeSensor) return { view: null, viewError: null };
-    const entry = artifact.lines.find((l) => String(l.line) === line) ?? artifact.lines[0];
+    const useLive = liveOverride && liveOverride.line === line && liveOverride.sensor === activeSensor;
+    const entry = useLive
+      ? liveOverride.data
+      : artifact.lines.find((l) => String(l.line) === line) ?? artifact.lines[0];
     const errs = validateLine(entry, activeSensor);
     if (errs.length) return { view: null, viewError: errs.slice(0, 3).join('; ') };
     return { view: lineView(entry, activeSensor), viewError: null };
-  }, [artifact, line, activeSensor]);
+  }, [artifact, line, activeSensor, liveOverride]);
 
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -118,6 +128,27 @@ export default function App() {
       unsubscribe();
     };
   }, []);
+
+  // Mode changes are announced where they happen, joined with the message that caused them:
+  // the single polite region replaces its text, so two separate calls would drop the first.
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const modeSuffix = (next) => (modeRef.current === next ? '' : ` ${modeText(badgeText(next))}`);
+
+  // A live result for another line/sensor never shows: selection changes return to the replay.
+  useEffect(() => {
+    if (!liveOverride) return;
+    if (liveOverride.line !== line || liveOverride.sensor !== activeSensor) {
+      setLiveOverride(null);
+      setMode('precomputed'); // announced by onLineChange / onSensorChange
+      setStatusMessage(null);
+    }
+  }, [line, activeSensor, liveOverride]);
+
+  // A map track the current view lacks (live mode skips some) falls back to TL.
+  useEffect(() => {
+    if (view && !view.available.has(mapTrack) && view.available.has(DEFAULT_TRACK)) setMapTrack(DEFAULT_TRACK);
+  }, [view, mapTrack]);
 
   // A new line/sensor view: load its time axis (pauses and resets to index 0).
   useEffect(() => {
@@ -211,17 +242,63 @@ export default function App() {
     };
   }, [endRun]);
 
+  // Run live in-page (D-14/D-15): success swaps in the computed line for this line x sensor;
+  // any failure falls back to the precomputed data with the same visuals and a danger notice.
+  const onRunLive = useCallback(async () => {
+    if (live.inFlight || endedRef.current || !activeSensor) return;
+    const runLine = line;
+    const runSensor = activeSensor;
+    const label = sensorLabelOf(runSensor);
+    playback.pause();
+    setLiveDanger(null);
+    setStatusMessage(null);
+    announce(`${modeText(badgeText('computing'))} ${stageText(1)}`);
+    setMode('computing');
+    liveRunFlag.inFlight = true;
+    let res;
+    try {
+      res = await live.start({
+        line: runLine,
+        sensor: runSensor,
+        simulateFailure,
+        onStage: (n) => { if (n > 1) announce(stageText(n)); },
+      });
+    } finally {
+      liveRunFlag.inFlight = false;
+    }
+    if (res.ok) {
+      setLiveOverride({ line: runLine, sensor: runSensor, data: res.line });
+      announce(modeText(badgeText('computed')));
+      setMode('computed');
+      setStatusMessage(`Live run finished in ${(res.elapsedMs / 1000).toFixed(1)} s. Showing results computed in your browser.`);
+      playback.pause();
+      playback.seekIndex(0);
+      return;
+    }
+    setLiveOverride(null);
+    setMode('precomputed');
+    playback.pause();
+    playback.seekIndex(0);
+    const why = res.reason.name === 'Timeout'
+      ? 'Live run took longer than 90 s.'
+      : `Live run failed: ${res.reason.name}: ${res.reason.message}.`;
+    setLiveDanger(`${why} Showing the precomputed replay for ${runLine} / ${label}.`);
+    announce(`${liveFailedText()} ${modeText(badgeText('precomputed'))}`);
+  }, [live, line, activeSensor, simulateFailure]);
+
   const onLineChange = useCallback((id) => {
+    setLiveDanger(null);
     playback.pause();
     playback.seekIndex(0);
     setLine(id);
-    announce(selectionText(id, sensorLabelOf(activeSensor)));
+    announce(`${selectionText(id, sensorLabelOf(activeSensor))}${modeSuffix('precomputed')}`);
   }, [activeSensor]);
   const onSensorChange = useCallback((s) => {
+    setLiveDanger(null);
     playback.pause();
     playback.seekIndex(0);
     setSensor(s);
-    announce(selectionText(line, sensorLabelOf(s)));
+    announce(`${selectionText(line, sensorLabelOf(s))}${modeSuffix('precomputed')}`);
   }, [line]);
   const onToggleSeries = useCallback((key, on) => {
     setVisible((prev) => {
@@ -235,11 +312,19 @@ export default function App() {
   const loadError = status === 'error' ? error : viewError;
   const danger = loadError
     ? `Could not load the precomputed flight (${loadError}). Press Stop, then Run, to reload the project.`
-    : null;
+    : liveDanger;
   const controlsDisabled = status !== 'ready' || !view;
   const lines = artifact ? artifact.lines.map((l) => String(l.line)) : [DEFAULT_LINE];
   const sensors = artifact ? artifact.sensors : Object.keys(SENSOR_LABELS);
   const sensorLabel = sensorLabelOf(activeSensor);
+  const hasBackend = Boolean(qBackend) || import.meta.env.DEV;
+  const liveControls = {
+    enabled: hasBackend && !live.inFlight && !runEnded && !controlsDisabled,
+    hasBackend,
+    onRun: onRunLive,
+    simulateFailure,
+    onSimulateFailureChange: setSimulateFailure,
+  };
 
   return (
     <main className="page">
@@ -261,6 +346,8 @@ export default function App() {
         speed={speed}
         view={view}
         disabled={controlsDisabled}
+        selectionLocked={live.inFlight}
+        live={liveControls}
         onLineChange={onLineChange}
         onSensorChange={onSensorChange}
         onMapTrackChange={setMapTrack}
@@ -276,6 +363,8 @@ export default function App() {
         danger={danger}
         onEndRun={() => endRun(RUN_ENDED_MESSAGE)}
         runEnded={runEnded}
+        live={live.inFlight ? { stage: live.stage, progress: live.progress } : null}
+        reduced={reduced}
       />
 
       <div className="jam-slot">

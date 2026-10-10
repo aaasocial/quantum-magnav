@@ -29,3 +29,50 @@ export function logFrameProbe() {
     }));
   }));
 }
+
+// Runs asyncFn while counting animation frames and the largest gap between them, which shows
+// whether a Python call blocks the main thread (RESEARCH Pitfall 1). Rethrows asyncFn's error.
+export async function measureFrames(asyncFn) {
+  let frames = 0;
+  let maxGapMs = 0;
+  let last = performance.now();
+  let running = true;
+  let handle = 0;
+  const tick = (ts) => {
+    if (!running) return;
+    frames += 1;
+    maxGapMs = Math.max(maxGapMs, ts - last);
+    last = ts;
+    handle = requestAnimationFrame(tick);
+  };
+  handle = requestAnimationFrame(tick);
+  const t0 = performance.now();
+  try {
+    const result = await asyncFn();
+    return { result, ms: Math.round(performance.now() - t0), frames, maxGapMs: Math.round(maxGapMs) };
+  } finally {
+    running = false;
+    cancelAnimationFrame(handle);
+  }
+}
+
+// Wraps the bridge's callPy so every live call logs its JS-measured cost and frame count.
+export function probeLiveCall(callPy) {
+  return async (name, ...args) => {
+    const { result, ms, frames, maxGapMs } = await measureFrames(() => callPy(name, ...args));
+    if (name === 'live_step') {
+      console.log('[probe] live_step', JSON.stringify({
+        ms,
+        budgetMs: args[0],
+        frames,
+        maxGapMs,
+        stage: result?.stage ?? null,
+        fitting: result?.fitting ?? null,
+        windowsDone: result?.windows_done ?? null,
+      }));
+    } else if (name === 'live_result') {
+      console.log('[probe] live_result', JSON.stringify({ ms, frames, maxGapMs }));
+    }
+    return result;
+  };
+}

@@ -37,6 +37,7 @@ test('builders return the exact UI-SPEC strings', () => {
     '1200 seconds. Position error, Tolles-Lawson (TL): 312 metres. Dead reckoning: 2481 metres.',
   );
   assert.equal(modeText('computed in-page'), 'Mode: computed in-page.');
+  assert.equal(modeText('computing in-page…'), 'Mode: computing in-page.');
   assert.equal(stageText(2), 'Step 2 of 4.');
   assert.equal(liveFailedText(), 'Live run failed. Showing the precomputed replay.');
   assert.equal(finishedText('Tolles-Lawson (TL)', 53), 'Replay finished. Final position error, Tolles-Lawson (TL): 53 metres.');
