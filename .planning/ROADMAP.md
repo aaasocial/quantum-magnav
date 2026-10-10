@@ -113,19 +113,23 @@ Plans:
   4. A keyboard-only user can operate every control with visible focus, status changes are announced via aria-live, and screen-reader labels exist on charts and toggles
   5. With colour removed, series are still distinguishable by dash pattern; with `prefers-reduced-motion` on, animation becomes stepped; each chart has a text or table alternative
 
-**Plans**: 3 plans
+**Plans**: 4 plans
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Python live API: resumable tercom_steps, artifact.line_entry, magnav/live.py, api.artifact_json + live_start/step/skip/result/cancel, equivalence and no-backend.run tests
+- [ ] 03-01-PLAN.md — Python live API: resumable tercom_steps, artifact.line_entry, magnav/live.py (stage 2 one fit per call), api.artifact_json + live_start/step/skip/result/cancel, equivalence and no-backend.run tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — JS player core: pinned deps, serialized bridge + dev stub (?raw), artifact/playback libs, cividis MapView, ControlBar, StatusStrip, keyboard, reduced motion, keep-alive (playable on vite dev)
+- [ ] 03-02-PLAN.md — JS data + map core: pinned deps, serialized bridge + dev stub (?raw), artifact/playback/colormap/geo libs with node tests, theme, usePlayback, cividis MapView
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — SignalPanel + residual (recharts), metrics/text tables, jam banner, aria-live, Run live with fallback, bundle/compliance gates, packaging, Qollab editor check (no publish)
+- [ ] 03-03-PLAN.md — Playable App shell: ControlBar, StatusStrip, dark theme, MapView mounted, UI-SPEC keyboard map, reduced motion, keep-alive, probes, single aria-live Announcer
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md — SignalPanel + residual (recharts), metrics/text tables, jam banner, pure node-tested runLive with fallback, bundle/compliance gates, packaging, Qollab editor check (no publish)
 **UI hint**: yes
 
 ### Phase 4: Quantum Denoiser and IonQ Runs
