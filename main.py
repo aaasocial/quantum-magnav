@@ -22,13 +22,15 @@ from magnav.artifact import (
     write_run_artifact,
 )
 from magnav.data import load_provenance
-from magnav.metrics import format_metrics_table
+from magnav.metrics import format_acceptance, format_metrics_table
 
 if sys.platform == "emscripten":
     art = load_artifact()
     print("Quantum MagNav - classical pipeline on SGL 2020 (precomputed replay of " + ARTIFACT_PATH + ")")
     print()
     print(format_metrics_table(art["metrics_table"]))
+    print()
+    print(format_acceptance(art["acceptance"]))
 else:
     if "backend" not in globals():  # local only; on Qollab `backend` is injected
         from qiskit.providers.basic_provider import BasicSimulator
@@ -58,8 +60,17 @@ else:
     print()
 
     artifact = build_run_artifact(result, load_provenance())
+    # D-17 gate: printed, stored in the artifact and enforced by tests/test_acceptance.py
+    # (no non-zero exit on FAIL so the artifact can still be inspected)
+    print(format_acceptance(artifact["acceptance"]))
+    print()
     errors = validate_artifact(artifact)
     if errors:
         raise SystemExit("RunArtifact invalid:\n  " + "\n  ".join(errors))
     nbytes = write_run_artifact(artifact)
     print(f"Wrote {ARTIFACT_PATH} ({nbytes} bytes, valid)")
+
+    from magnav.figures import save_figures
+
+    figs = save_figures(artifact)
+    print("Figures: " + (", ".join(figs) if figs else "skipped (matplotlib not installed)"))

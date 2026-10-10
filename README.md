@@ -35,6 +35,27 @@ uv run python main.py
 
 `main.py` uses Qiskit's `BasicSimulator` locally. On Qollab the platform injects `backend`.
 
+## Data and reproduction
+
+**Data citation.** Flight data: the SGL 2020 MagNav Challenge dataset, collected by Sander Geophysics Ltd. under USAF Cooperative Agreement FA8750-19-2-1000 and described in Gnadt et al., "Signal Enhancement for Magnetic Navigation Challenge Problem", arXiv:2007.12158. Magnetic anomaly maps: the Ottawa-area maps (Eastern_395, Renfrew_395) distributed with MagNav.jl (MIT Lincoln Laboratory).
+
+**What ships.** Only cropped, decimated excerpts are in `data/`: three flight lines decimated from 10 Hz to 2 Hz (block mean of 5) and two map tiles cropped to each line's area plus 5 km and downsampled 4x. Each file is under 2 MB. The raw HDF5 files stay local (`data_raw/`, git-ignored), in line with the dataset's data-sharing agreement. `data/provenance.json` records the source file, SHA-256 hash and time range of every excerpt.
+
+**Reproduce.**
+
+```bash
+uv run --with h5py python -I scripts/preprocess_sgl.py   # only with the raw HDF5 files in data_raw/
+uv run python main.py                                     # about 3 minutes
+```
+
+`main.py` fits every denoiser on calibration line 1006.08 only. It then jams GPS 25% of the way into each held-out line (1003.02 and 1007.06) and navigates magnetic-only with TERCOM: a 60 s window, a 3 km search box, and a 0.85 correlation gate. It prints the metrics table for both cabin sensors, then the acceptance checks. It writes `data/precomputed_run.json`, the replay file used by the web page and the Qollab fallback, and the figures below. The headline threshold is 556 m (0.3 nmi, the RNP-style figure AQNav quotes); 1 nmi and 2 nmi are also reported. Mag 5 (`mag_5_uc`) is the default demo sensor. Mag 4 (`mag_4_uc`) is the hard case, where the denoisers differ most.
+
+Figures:
+- [Tracks on line 1003.02](results/nav_1003_02.png)
+- [Tracks on line 1007.06](results/nav_1007_06.png)
+- [Mag 4 signal vs truth after the jam, line 1003.02](results/signal_1003_02_mag4.png)
+- [Position error vs time after the jam](results/error_vs_time.png)
+
 ## Method notes
 
 **Tolles-Lawson fluxgate and ridge lambda (decision D-19).** The aircraft carries four vector fluxgates (`flux_a` to `flux_d`). For each cabin sensor, the pipeline picks the fluxgate used by Tolles-Lawson, and the ridge lambda, jointly. It uses 5-fold blocked cross-validation (5 contiguous time blocks) on the calibration line 1006.08 only. The score is the full-band out-of-block RMSE of the compensated cabin magnetometer against the compensated reference `mag_1_c`, with the calibration offset fitted on the training blocks. The held-out lines 1003.02 and 1007.06 are never consulted. The chosen fluxgate also drives TL+currents (whose lambda is chosen by the same CV with that fluxgate fixed) and the 22 KRR/quantum features for that sensor. The choice is printed by `main.py` and stored in the run artifact's provenance (`provenance.tl`).

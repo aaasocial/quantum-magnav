@@ -33,7 +33,7 @@ TERCOM_PROVENANCE = {
 }
 REQUIRED_TOP = (
     "schema_version", "title", "sensors", "default_sensor", "denoisers", "thresholds_m",
-    "provenance", "lines", "metrics_table",
+    "provenance", "lines", "metrics_table", "acceptance",
 )  # fmt: skip
 REQUIRED_LINE = (
     "line", "map_file", "frame", "map_preview", "jam", "t", "truth", "dead_reckoning", "estimates", "metrics",
@@ -138,6 +138,8 @@ def _sources(provenance: dict) -> list:
 
 def build_run_artifact(result: dict, provenance: dict) -> dict:
     """Assemble RunArtifact v1 from run_pipeline() output and data/provenance.json."""
+    from magnav.metrics import acceptance_checks
+
     cfg = result["config"]
     lines_out = []
     for line_id, L in result["lines"].items():
@@ -213,6 +215,7 @@ def build_run_artifact(result: dict, provenance: dict) -> dict:
         "provenance": prov,
         "lines": lines_out,
         "metrics_table": table,
+        "acceptance": acceptance_checks(table),
     }
     return _clean(obj)
 
