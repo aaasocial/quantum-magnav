@@ -29,7 +29,7 @@ shopt -u nullglob
 [ "${#PY_FILES[@]}" -gt 0 ] || fail "no magnav/*.py files found"
 # Explicit allowlist: Qollab preloads a data file only if its path is a literal in the
 # Python code, so every entry here must also appear verbatim in magnav/*.py.
-DATA_FILES=(data/smoke.json)
+DATA_FILES=(data/smoke.json data/flt1006_line08.npz data/flt1003_line02.npz data/flt1007_line06.npz data/map_eastern_395.npz data/map_renfrew_395.npz data/provenance.json)
 for f in "${DATA_FILES[@]}"; do
   [ -f "$f" ] || fail "data entry is not a regular file: $f"
 done
