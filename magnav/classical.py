@@ -102,25 +102,6 @@ def _col_scale(A: np.ndarray) -> np.ndarray:
     return np.where(sd > _EPS, sd, 1.0)
 
 
-def select_lambda(A_f: np.ndarray, y_f: np.ndarray, grid=LAMBDA_GRID) -> float:
-    """Choose the ridge lambda on the given (calibration) arrays only.
-
-    Columns are scaled to unit std (bandpassed columns are already ~zero-mean), then a
-    blocked 70/30 time split picks the lambda with the lowest validation residual std.
-    """
-    A_f = np.asarray(A_f, dtype=np.float64)
-    y_f = np.asarray(y_f, dtype=np.float64)
-    Z = A_f / _col_scale(A_f)
-    k = int(0.7 * len(y_f))
-    best, best_err = None, np.inf
-    for lam in grid:
-        c = ridge(Z[:k], y_f[:k], lam)
-        err = float(np.std(y_f[k:] - Z[k:] @ c))
-        if err < best_err:
-            best, best_err = float(lam), err
-    return best
-
-
 # ---------------------------------------------------------------------------
 # D-19: per-sensor fluxgate + lambda by blocked CV on the calibration line only
 # ---------------------------------------------------------------------------

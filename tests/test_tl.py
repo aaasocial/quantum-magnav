@@ -1,4 +1,4 @@
-"""Tolles-Lawson: A-matrix terms, planted-coefficient recovery, lambda selection, real data."""
+"""Tolles-Lawson: A-matrix terms, planted-coefficient recovery, D-19 selection, real data."""
 
 import numpy as np
 import pytest
@@ -10,7 +10,6 @@ from magnav.classical import (
     bpf,
     fdm,
     ridge,
-    select_lambda,
     tl_A,
 )
 from magnav.data import FLT1003_LINE02, FLT1006_LINE08, FLT1007_LINE06, load_line
@@ -62,16 +61,6 @@ def test_tl_recovers_planted_coefficients():
     s = slice(TL_TRIM, -TL_TRIM)
     coef = ridge(bpf(A, fs)[s], bpf(mag, fs)[s], 1e-6)
     assert np.linalg.norm(coef - planted) / np.linalg.norm(planted) < 0.01
-
-
-def test_select_lambda_uses_only_given_data():
-    rng = np.random.default_rng(3)
-    A = rng.normal(size=(400, 18))
-    y = A @ rng.normal(size=18) + rng.normal(0, 0.5, 400)
-    lam1 = select_lambda(A, y)
-    lam2 = select_lambda(A.copy(), y.copy())
-    assert lam1 in LAMBDA_GRID
-    assert lam1 == lam2
 
 
 @pytest.fixture(scope="module")
