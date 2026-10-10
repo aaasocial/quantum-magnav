@@ -27,6 +27,9 @@ def test_readme_compliance_strings():
         "Qiskit",
         "Apache-2.0",
         "## Originality",
+        "react-is",
+        "d3-scale-chromatic",
+        "THIRD_PARTY_LICENSES.md",
     ):
         assert needle in readme, needle
 

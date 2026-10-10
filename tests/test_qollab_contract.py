@@ -11,8 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "index.html"
 MAIN_JS = ROOT / "main.js"
 MAIN_CSS = ROOT / "main.css"
+LICENSES = ROOT / "THIRD_PARTY_LICENSES.md"
 ATTRIBUTION = "This effort is supported by Qollab & IonQ."
 MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_MAIN_JS = 1_500_000  # headroom under Qollab's 2 MB per-file cap
 FORBIDDEN_TAGS = re.compile(r"<script|<html|<head|<body", re.IGNORECASE)
 # Any ES export statement, minified or not: `export {`, `;export{x}`, `export *`, `export default`,
 # `export const/let/var/function/class`.
@@ -67,7 +69,7 @@ def test_committed_bundle_matches_fresh_build(tmp_path):
         capture_output=True,
         timeout=180,
     )
-    for name in ("main.js", "main.css"):
+    for name in ("main.js", "main.css", "THIRD_PARTY_LICENSES.md"):
         fresh = (tmp_path / name).read_bytes()
         assert fresh == (ROOT / name).read_bytes(), (
             f"{name} is stale: run `npm --prefix web run build` and commit it"
@@ -88,3 +90,55 @@ def test_main_css_nonempty():
 def test_no_stray_build_output():
     assert not (ROOT / "assets").exists()
     assert "<script" not in INDEX.read_text(encoding="utf-8").lower()
+
+
+def test_main_js_budget():
+    assert MAIN_JS.stat().st_size < MAX_MAIN_JS
+
+
+def test_bundle_has_no_artifact_copy():
+    # The artifact comes through Python at runtime; the dev stub's ?raw import never ships.
+    assert "precomputed_run" not in MAIN_JS.read_text(encoding="utf-8")
+
+
+def _web_sources(*suffixes):
+    return [p for p in (WEB / "src").rglob("*") if p.suffix in suffixes and p.is_file()]
+
+
+def test_charts_disable_accessibility_layer():
+    for path in _web_sources(".jsx"):
+        text = path.read_text(encoding="utf-8")
+        charts = text.count("<LineChart")
+        assert charts == text.count("accessibilityLayer={false}"), path.name
+
+
+def test_no_unsafe_html_in_web_src():
+    for path in _web_sources(".js", ".jsx"):
+        text = path.read_text(encoding="utf-8")
+        for bad in ("dangerouslySetInnerHTML", "innerHTML", "eval("):
+            assert bad not in text, f"{bad} in {path.relative_to(ROOT)}"
+
+
+@pytest.mark.parametrize(
+    "copy",
+    [
+        "Quantum MagNav: holding position without GPS",
+        "Run live in-page",
+        "precomputed replay",
+        "computed in-page",
+        "Live run took longer than 90 s",
+        "magnetic-only from here",
+        "Navigation accuracy",
+        "Magnetic signal",
+        "No survey data",
+        "Signal data (every 60 s)",
+    ],
+)
+def test_ui_copy_in_bundle(copy):
+    assert copy in MAIN_JS.read_text(encoding="utf-8")
+
+
+def test_third_party_licenses_present():
+    text = LICENSES.read_text(encoding="utf-8")
+    for name in ("recharts", "react", "d3-scale-chromatic"):
+        assert f"## {name} - " in text, name

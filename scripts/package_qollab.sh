@@ -36,7 +36,7 @@ done
 
 COMMON=(requirements.txt LICENSE README.md "${PY_FILES[@]}" "${DATA_FILES[@]}")
 # main.py stays out of the JS upload: if Qollab ran it, it could take the run's one IonQ job.
-UPLOAD=(index.html main.js main.css "${COMMON[@]}")
+UPLOAD=(index.html main.js main.css THIRD_PARTY_LICENSES.md "${COMMON[@]}")
 FALLBACK=(main.py "${COMMON[@]}")
 
 check_sources() {
@@ -85,7 +85,7 @@ zip -X -q dist/qollab-fallback-py.zip "${FALLBACK[@]}"
 check_zip dist/qollab-upload.zip
 check_zip dist/qollab-fallback-py.zip
 
-for f in index.html main.js; do
+for f in index.html main.js main.css THIRD_PARTY_LICENSES.md; do
   has_entry dist/qollab-upload.zip "$f" || fail "dist/qollab-upload.zip is missing $f"
   if has_entry dist/qollab-fallback-py.zip "$f"; then
     fail "dist/qollab-fallback-py.zip must not contain $f (it would run as a JS project)"
