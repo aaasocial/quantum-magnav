@@ -119,6 +119,7 @@ export default function ControlBar({
   selectionLocked = false,
   seriesDisabled = false,
   live = null,
+  focusRefs = null,
   onLineChange,
   onSensorChange,
   onMapTrackChange,
@@ -144,7 +145,13 @@ export default function ControlBar({
       <div className="control-row">
         <div className="field">
           <label htmlFor={lineId}>Flight line</label>
-          <select id={lineId} value={line} onChange={(e) => onLineChange(e.target.value)} disabled={disabled || selectionLocked}>
+          <select
+            id={lineId}
+            ref={focusRefs?.line}
+            value={line}
+            onChange={(e) => onLineChange(e.target.value)}
+            disabled={disabled || selectionLocked}
+          >
             {lines.map((id) => <option key={id} value={id}>{LINE_LABELS[id] ?? id}</option>)}
           </select>
         </div>
@@ -152,6 +159,7 @@ export default function ControlBar({
           <label htmlFor={sensorId}>Sensor</label>
           <select
             id={sensorId}
+            ref={focusRefs?.sensor}
             value={sensor}
             onChange={(e) => onSensorChange(e.target.value)}
             disabled={disabled || selectionLocked}
@@ -189,6 +197,7 @@ export default function ControlBar({
             <button
               type="button"
               className="btn-primary run-live"
+              ref={focusRefs?.runLive}
               onClick={live.onRun}
               disabled={!live.enabled}
               aria-describedby={liveHelpId}

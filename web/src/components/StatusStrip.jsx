@@ -57,7 +57,7 @@ function provenanceText(provenance) {
 }
 
 export default function StatusStrip({
-  mode, message, jamT, provenance, danger, onEndRun, runEnded, live = null, reduced = false, children,
+  mode, message, jamT, provenance, danger, onEndRun, runEnded, live = null, reduced = false, focusRef = null, children,
 }) {
   const computing = live && live.stage > 0;
   const text = computing
@@ -67,7 +67,8 @@ export default function StatusStrip({
     <section className="panel status-strip" aria-label="Run status">
       <div className="status-row">
         <span className={`mode-badge${mode === 'computed' ? ' mode-badge-ok' : ''}`}>{badgeText(mode)}</span>
-        <p className="status-message">{text}</p>
+        {/* tabIndex -1: focus parks here when the focused control disables itself (WR-02). */}
+        <p className="status-message" tabIndex={-1} ref={focusRef}>{text}</p>
         <button type="button" className="btn-small end-run" onClick={onEndRun} disabled={runEnded}>
           End run
         </button>

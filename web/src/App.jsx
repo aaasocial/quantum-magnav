@@ -59,6 +59,11 @@ export default function App() {
   const [runEnded, setRunEnded] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const endedRef = useRef(false);
+  // Focus management (WR-02): a control that disables itself while focused would drop focus to
+  // <body>. Focus parks on the status message instead and returns to the control afterwards.
+  const statusFocusRef = useRef(null);
+  const focusRefs = { line: useRef(null), sensor: useRef(null), runLive: useRef(null) };
+  const restoreFocusRef = useRef(null);
 
   const activeSensor = sensor ?? artifact?.default_sensor ?? null;
 
@@ -165,6 +170,8 @@ export default function App() {
   const endRun = useCallback(async (message) => {
     if (endedRef.current) return;
     endedRef.current = true;
+    if (document.activeElement?.closest?.('.end-run')) statusFocusRef.current?.focus(); // End run disables itself
+    restoreFocusRef.current = null; // every live control stays disabled once the run has ended
     setRunEnded(true);
     if (liveRunFlag.inFlight) {
       const text = `${LIVE_CANCELLED_MESSAGE} ${message}`;
@@ -261,6 +268,12 @@ export default function App() {
     const runSensor = activeSensor;
     const label = sensorLabelOf(runSensor);
     playback.pause();
+    const active = document.activeElement;
+    const locked = [focusRefs.runLive.current, focusRefs.line.current, focusRefs.sensor.current];
+    if (active && locked.includes(active)) {
+      restoreFocusRef.current = active;
+      statusFocusRef.current?.focus();
+    }
     setLiveDanger(null);
     setStatusMessage(null);
     announce(`${modeText(badgeText('computing'))} ${stageText(1)}`);
@@ -303,6 +316,17 @@ export default function App() {
     setLiveDanger(`${why} Showing the precomputed replay for ${runLine} / ${label}.`);
     announce(`${liveFailedText()} ${modeText(badgeText('precomputed'))}`);
   }, [live, line, activeSensor, simulateFailure]);
+
+  // Once the live controls are enabled again, focus returns to the control that had it, unless
+  // the user has moved focus elsewhere meanwhile.
+  useEffect(() => {
+    if (live.inFlight || !restoreFocusRef.current) return;
+    const el = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    const active = document.activeElement;
+    const parked = !active || active === document.body || active === statusFocusRef.current;
+    if (parked && el.isConnected && !el.disabled) el.focus();
+  }, [live.inFlight]);
 
   const onLineChange = useCallback((id) => {
     setLiveDanger(null);
@@ -366,6 +390,7 @@ export default function App() {
         disabled={controlsDisabled}
         selectionLocked={live.inFlight}
         live={liveControls}
+        focusRefs={focusRefs}
         onLineChange={onLineChange}
         onSensorChange={onSensorChange}
         onMapTrackChange={setMapTrack}
@@ -383,6 +408,7 @@ export default function App() {
         runEnded={runEnded}
         live={live.inFlight ? { stage: live.stage, progress: live.progress } : null}
         reduced={reduced}
+        focusRef={statusFocusRef}
       />
 
       <div className="jam-slot">
