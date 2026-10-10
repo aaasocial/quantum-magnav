@@ -112,6 +112,37 @@ def test_charts_disable_accessibility_layer():
         assert charts == text.count("accessibilityLayer={false}"), path.name
 
 
+# Recharts elements that animate (and schedule work through setTimeout) unless told not to.
+ANIMATED_RECHARTS = re.compile(r"<(Line|Area|Bar|Scatter|Pie|Radar|RadialBar|Funnel|Tooltip)\b")
+
+
+def test_recharts_animation_and_debounce_stay_off():
+    """WR-06: bundled third-party timers run on Qollab's injected, promise-returning setTimeout,
+    so no first-party code may switch on a recharts animation or a debounce."""
+    for path in _web_sources(".jsx", ".js"):
+        text = path.read_text(encoding="utf-8")
+        if "from 'recharts'" not in text:
+            continue
+        animated = len(ANIMATED_RECHARTS.findall(text))
+        assert animated == text.count("isAnimationActive={false}"), path.name
+        assert "isAnimationActive={true}" not in text, path.name
+    for path in _web_sources(".jsx", ".js"):
+        assert not re.search(r"\bdebounce\s*[=:(]", path.read_text(encoding="utf-8")), path.name
+
+
+# Timer references in the built bundle: all third-party (React scheduler, RTK autoBatchEnhancer,
+# es-toolkit debounce, recharts animation and tooltip sync) except App.jsx's one setInterval.
+# A change here means a dependency or first-party code started scheduling on Qollab's injected
+# timers: check that the new call site works with a promise-returning setTimeout, then update.
+BUNDLE_TIMER_REFS = {"setTimeout": 32, "clearTimeout": 13, "setInterval": 3}
+
+
+def test_bundle_timer_call_sites_are_known():
+    text = MAIN_JS.read_text(encoding="utf-8")
+    found = {name: len(re.findall(rf"\b{name}\b", text)) for name in BUNDLE_TIMER_REFS}
+    assert found == BUNDLE_TIMER_REFS
+
+
 def test_no_unsafe_html_in_web_src():
     for path in _web_sources(".js", ".jsx"):
         text = path.read_text(encoding="utf-8")

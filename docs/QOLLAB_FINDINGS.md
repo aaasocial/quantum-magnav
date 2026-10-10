@@ -176,3 +176,9 @@ The orchestrator ran this check with the builder's authorization between 10:30 a
 - The full keyboard tab-order walkthrough and the reduced-motion and achromatopsia emulation. The Task 1-3 executor checked both in headless Chrome on `vite dev`, but they were not repeated in the Qollab preview.
 - A live run on 1007.06. Its time is projected in item 4 above.
 - IonQ Forte 1 (remote simulator). It was not used. Live mode never submits a job (D-16).
+
+### Third-party timers (code review WR-06)
+
+- Qollab's injected `setTimeout` is not the native one and returns a promise (interpretation item 2). First-party code never uses it, but bundled third-party code still does: the React scheduler, the recharts animation and tooltip-sync code, the RTK `autoBatchEnhancer` and the es-toolkit `debounce` all name `setTimeout`/`clearTimeout` in `main.js`. On Qollab they get the injected version, and a `clearTimeout` on a promise handle may cancel nothing.
+- Nothing user-facing depends on those timers. React's scheduler uses `MessageChannel` when it exists (it does in Chrome). Every recharts element has `isAnimationActive={false}`, and nothing passes `debounce` (for example to `ResponsiveContainer`). The RTK path stays behind its guard flag.
+- `tests/test_qollab_contract.py` enforces this: `test_recharts_animation_and_debounce_stay_off` greps `web/src`, and `test_bundle_timer_call_sites_are_known` pins the timer reference count in `main.js`, so a new call site fails CI until someone checks it against a promise-returning `setTimeout`.

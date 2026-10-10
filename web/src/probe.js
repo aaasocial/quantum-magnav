@@ -1,6 +1,12 @@
 // Runtime probes for the Qollab sandbox (RESEARCH Pitfalls 5 and 7). This is the only file
 // that names setTimeout, because it inspects Qollab's injected replacement; nothing here is
 // used for correctness.
+//
+// Bundled third-party code (React scheduler, recharts, RTK, es-toolkit) still calls the
+// injected setTimeout/clearTimeout at module scope (WR-06). Nothing user-facing depends on it:
+// React's scheduler uses MessageChannel when available, recharts animations are off
+// (isAnimationActive={false}) and no debounce is used. tests/test_qollab_contract.py enforces
+// both rules and pins the bundle's timer call-site count.
 
 export function logTimerProbe() {
   let returnsPromise = null;
