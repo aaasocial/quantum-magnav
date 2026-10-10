@@ -1,0 +1,61 @@
+:root {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+  color: #1c1c1c;
+  background: #ffffff;
+}
+
+.page {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+h1 { font-size: 1.6rem; margin: 0.5rem 0 1rem; }
+h2 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; }
+
+.warning {
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid #a51d2d;
+  background: #fdecee;
+  color: #6b0f1a;
+}
+
+.info { margin: 0; display: grid; gap: 0.25rem; }
+.info-row { display: grid; grid-template-columns: 9rem 1fr; gap: 0.75rem; }
+.info dt { font-weight: 600; }
+.info dd { margin: 0; overflow-wrap: anywhere; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
+.field { display: flex; flex-direction: column; gap: 0.25rem; }
+label { font-weight: 600; }
+
+select, button { font: inherit; padding: 0.4rem 0.75rem; border-radius: 4px; }
+select { border: 1px solid #555; background: #fff; color: #1c1c1c; }
+button {
+  border: 1px solid #0d3b78;
+  background: #1a5fb4;
+  color: #ffffff;
+  cursor: pointer;
+}
+button:disabled { background: #d6d6d6; border-color: #8a8a8a; color: #3d3d3d; cursor: not-allowed; }
+
+:focus-visible { outline: 3px solid #1a5fb4; outline-offset: 2px; }
+
+.status { min-height: 1.5em; font-weight: 500; }
+
+table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+caption { text-align: left; font-weight: 600; padding-bottom: 0.25rem; }
+th, td { border: 1px solid #6e6e6e; padding: 0.35rem 0.6rem; text-align: left; vertical-align: top; }
+thead th { background: #eef2f7; }
+
+pre {
+  background: #f4f4f4;
+  border: 1px solid #6e6e6e;
+  padding: 0.75rem;
+  overflow: auto;
+  max-height: 24rem;
+}
+
+footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #b0b0b0; font-size: 0.95rem; }
+footer p { margin: 0.2rem 0; }
