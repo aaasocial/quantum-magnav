@@ -4,6 +4,7 @@ Nothing here accepts truth: the navigator sees the anomaly signal derived from S
 the dead-reckoning track, the map tile, and the last GPS fix as a plain (x, y) tuple.
 """
 
+from collections.abc import Generator
 from dataclasses import dataclass
 
 import numpy as np
@@ -97,7 +98,7 @@ def match_window(tile: MapTile, s_win, px, py, rx, ry, ox, oy):
     return float(ox[k]), float(oy[k]), float(ncc[k])
 
 
-def tercom(
+def tercom_steps(
     signal: np.ndarray,
     dr: DRResult,
     jam_idx: int,
@@ -109,15 +110,11 @@ def tercom(
     step_m: float = 60.0,
     gate: float = 0.85,
     median: int = 3,
-) -> NavResult:
-    """Gated TERCOM with a recursive INS-propagated prior.
+) -> Generator[int, None, NavResult]:
+    """Resumable tercom(): same arguments, yields the number of windows done after each window.
 
-    For each window ending at e (exclusive): prior p = last raw estimate + DR movement
-    since then (initialised at the jam fix); search a square of +/- half_width_m around
-    p on a step_m grid; accept the best NCC offset only if it reaches `gate`, otherwise
-    coast on p. The output is a causal median over the last `median` raw estimates, each
-    propagated to the current window end by DR increments; the median is output-only and
-    never fed back into the prior.
+    Drained with next() until StopIteration, StopIteration.value is the NavResult that
+    tercom(...) returns. Lets the live API spread TERCOM over short calls.
     """
     signal = np.asarray(signal, dtype=np.float64)
     n = len(signal)
@@ -153,6 +150,7 @@ def tercom(
         out_x.append(float(np.median(hx)))
         out_y.append(float(np.median(hy)))
         e += stride
+        yield len(ends)  # windows done so far
 
     x = dx_.copy()
     y = dy_.copy()
@@ -170,3 +168,33 @@ def tercom(
         est_x=np.asarray(est_x, dtype=np.float64),
         est_y=np.asarray(est_y, dtype=np.float64),
     )
+
+
+def tercom(
+    signal: np.ndarray,
+    dr: DRResult,
+    jam_idx: int,
+    fix_xy: tuple,
+    tile: MapTile,
+    window: int = 120,
+    stride: int = 20,
+    half_width_m: float = 1500.0,
+    step_m: float = 60.0,
+    gate: float = 0.85,
+    median: int = 3,
+) -> NavResult:
+    """Gated TERCOM with a recursive INS-propagated prior.
+
+    For each window ending at e (exclusive): prior p = last raw estimate + DR movement
+    since then (initialised at the jam fix); search a square of +/- half_width_m around
+    p on a step_m grid; accept the best NCC offset only if it reaches `gate`, otherwise
+    coast on p. The output is a causal median over the last `median` raw estimates, each
+    propagated to the current window end by DR increments; the median is output-only and
+    never fed back into the prior.
+    """
+    gen = tercom_steps(signal, dr, jam_idx, fix_xy, tile, window, stride, half_width_m, step_m, gate, median)
+    while True:
+        try:
+            next(gen)
+        except StopIteration as stop:
+            return stop.value

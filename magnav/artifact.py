@@ -168,55 +168,59 @@ def _sources(provenance: dict) -> list:
     return out
 
 
+def line_entry(line_id: str, L: dict) -> dict:
+    """One RunArtifact lines[i] entry from a run_pipeline out_lines entry (shared by the live API).
+
+    Not yet _clean()ed: build_run_artifact cleans the whole artifact, live.result cleans the entry.
+    """
+    n = int(L["n"])
+    jam = int(L["jam_idx"])
+    idx = downsample_idx(n, jam)
+    t = np.asarray(L["t"], dtype=np.float64)
+    estimates, metrics = {}, {"dead_reckoning": _metrics(L["dr_metrics"])}
+    for sensor, dens in L["results"].items():
+        estimates[sensor], metrics[sensor] = {}, {}
+        for name, r in dens.items():
+            we = np.asarray(r["window_end"], dtype=np.int64)
+            estimates[sensor][name] = {
+                "x": _r(np.asarray(r["x"])[idx], 0),
+                "y": _r(np.asarray(r["y"])[idx], 0),
+                "signal_nT": _r(np.asarray(r["signal"])[idx], 1),
+                "window_t": _r(t[np.clip(we - 1, 0, n - 1)] - t[0], 1),
+                "ncc": _r(r["ncc"], 3),
+                "accepted": [int(bool(a)) for a in np.asarray(r["accepted"]).tolist()],
+            }
+            metrics[sensor][name] = _metrics(r["metrics"])
+    frame = L["frame"]
+    return {
+        "line": line_id,
+        "map_file": L["map_file"],
+        "frame": {"type": "local_equirectangular", "lat0": frame["lat0"], "lon0": frame["lon0"], "R_m": frame["R"]},
+        "map_preview": map_preview(L["tile"]),
+        "jam": {
+            "index": jam,
+            "t_s": round(float(t[jam] - t[0]), 1),
+            "display_index": int(np.searchsorted(idx, jam)),
+        },
+        "metric_start_index": int(L["metric_start"]),
+        "t": _r(t[idx] - t[0], 1),
+        "truth": {
+            "x": _r(np.asarray(L["truth_x"])[idx], 0),
+            "y": _r(np.asarray(L["truth_y"])[idx], 0),
+            "anomaly_nT": _r(np.asarray(L["truth_anomaly"])[idx], 1),
+        },
+        "dead_reckoning": {"x": _r(np.asarray(L["dr_x"])[idx], 0), "y": _r(np.asarray(L["dr_y"])[idx], 0)},
+        "estimates": estimates,
+        "metrics": metrics,
+    }
+
+
 def build_run_artifact(result: dict, provenance: dict) -> dict:
     """Assemble RunArtifact v1 from run_pipeline() output and data/provenance.json."""
     from magnav.metrics import acceptance_checks
 
     cfg = result["config"]
-    lines_out = []
-    for line_id, L in result["lines"].items():
-        n = int(L["n"])
-        jam = int(L["jam_idx"])
-        idx = downsample_idx(n, jam)
-        t = np.asarray(L["t"], dtype=np.float64)
-        estimates, metrics = {}, {"dead_reckoning": _metrics(L["dr_metrics"])}
-        for sensor, dens in L["results"].items():
-            estimates[sensor], metrics[sensor] = {}, {}
-            for name, r in dens.items():
-                we = np.asarray(r["window_end"], dtype=np.int64)
-                estimates[sensor][name] = {
-                    "x": _r(np.asarray(r["x"])[idx], 0),
-                    "y": _r(np.asarray(r["y"])[idx], 0),
-                    "signal_nT": _r(np.asarray(r["signal"])[idx], 1),
-                    "window_t": _r(t[np.clip(we - 1, 0, n - 1)] - t[0], 1),
-                    "ncc": _r(r["ncc"], 3),
-                    "accepted": [int(bool(a)) for a in np.asarray(r["accepted"]).tolist()],
-                }
-                metrics[sensor][name] = _metrics(r["metrics"])
-        frame = L["frame"]
-        lines_out.append(
-            {
-                "line": line_id,
-                "map_file": L["map_file"],
-                "frame": {"type": "local_equirectangular", "lat0": frame["lat0"], "lon0": frame["lon0"], "R_m": frame["R"]},
-                "map_preview": map_preview(L["tile"]),
-                "jam": {
-                    "index": jam,
-                    "t_s": round(float(t[jam] - t[0]), 1),
-                    "display_index": int(np.searchsorted(idx, jam)),
-                },
-                "metric_start_index": int(L["metric_start"]),
-                "t": _r(t[idx] - t[0], 1),
-                "truth": {
-                    "x": _r(np.asarray(L["truth_x"])[idx], 0),
-                    "y": _r(np.asarray(L["truth_y"])[idx], 0),
-                    "anomaly_nT": _r(np.asarray(L["truth_anomaly"])[idx], 1),
-                },
-                "dead_reckoning": {"x": _r(np.asarray(L["dr_x"])[idx], 0), "y": _r(np.asarray(L["dr_y"])[idx], 0)},
-                "estimates": estimates,
-                "metrics": metrics,
-            }
-        )
+    lines_out = [line_entry(line_id, L) for line_id, L in result["lines"].items()]
 
     table = [_table_row(r) for r in result["metrics_table"]]
     prov = {

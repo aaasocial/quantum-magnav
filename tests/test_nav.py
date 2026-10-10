@@ -15,7 +15,7 @@ from magnav.data import (
     load_map,
 )
 from magnav.frames import Frame, ll_to_local, local_to_ll
-from magnav.nav import DRResult, simulate_dr, tercom
+from magnav.nav import DRResult, simulate_dr, tercom, tercom_steps
 
 TRUTH_ONLY = ("mag_1_c", "mag_1_igrf", "lat", "lon", "utm_x", "utm_y", "utm_z")
 
@@ -123,6 +123,37 @@ def test_tercom_planted_offset():
     start = nav.window_end[first] - 1
     err = np.hypot(nav.x[start:] - tx[start:], nav.y[start:] - ty[start:])
     assert err.max() <= CELL
+
+
+def _planted():
+    tile = _tile()
+    tx, ty = _truth_track()
+    sig, _ = tile.sample(tx, ty)
+    dr = _dr(tx, ty)
+    return sig, dr, 0, (dr.x[0], dr.y[0]), tile
+
+
+def _drain(gen):
+    yields = []
+    while True:
+        try:
+            yields.append(next(gen))
+        except StopIteration as stop:
+            return yields, stop.value
+
+
+def test_tercom_steps_matches_tercom():
+    args = _planted()
+    _, res = _drain(tercom_steps(*args))
+    ref = tercom(*args)
+    for f in ("x", "y", "window_end", "ncc", "accepted", "est_x", "est_y"):
+        assert np.array_equal(getattr(res, f), getattr(ref, f)), f
+
+
+def test_tercom_steps_yield_count():
+    yields, res = _drain(tercom_steps(*_planted()))
+    assert len(res.window_end) > 0
+    assert yields == list(range(1, len(res.window_end) + 1))
 
 
 def test_tercom_never_uses_invalid_cells():

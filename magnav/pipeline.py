@@ -74,6 +74,111 @@ def _truncate(obj, n: int):
     return dataclasses.replace(obj, **changes)
 
 
+def select_and_build(cal_sensors, cal_target, mag_key: str, backend=None) -> tuple:
+    """D-19 config selection on the calibration line, then the (unfitted) denoiser set."""
+    sel = select_tl_config(cal_sensors, cal_target, mag_key)
+    dens = build_denoisers(mag_key, backend, fluxgate=sel["fluxgate"], lam=sel["lambda"])
+    return dens, sel
+
+
+def fit_sensor(cal_sensors, cal_target, mag_key: str, backend=None, names=None) -> tuple:
+    """select_and_build, then fit every denoiser (or only `names`), keeping build order."""
+    dens, sel = select_and_build(cal_sensors, cal_target, mag_key, backend)
+    fitted = {name: d.fit(cal_sensors, cal_target) for name, d in dens.items() if names is None or name in names}
+    return fitted, sel
+
+
+def prepare_line(line_id: str, seed: int = SEED, truncate=None) -> dict:
+    """Load one held-out line, jam GPS, simulate DR and score DR (shared by run_pipeline and live)."""
+    if line_id not in HELD_OUT:
+        raise ValueError(f"unknown held-out line {line_id!r}; expected one of {sorted(HELD_OUT)}")
+    window = TERCOM_PARAMS["window"]
+    line_path, map_path = HELD_OUT[line_id]
+    sens, truth = load_line(line_path)
+    if truncate is not None:
+        sens, truth = _truncate(sens, int(truncate)), _truncate(truth, int(truncate))
+    tile = load_map(map_path)
+    n = sens.n
+    jam_idx = int(JAM_FRACTION * n)
+    tx, ty = ll_to_local(truth.lat, truth.lon, tile.frame)
+    fix_xy = (float(tx[jam_idx]), float(ty[jam_idx]))  # last GPS fix before the jam
+    seed_used = line_seed(seed, line_id)
+    dr = simulate_dr(sens, jam_idx, fix_xy, seed=seed_used, **DR_PARAMS)
+    start = jam_idx + window  # D-07: magnetic-only segment from the first full window
+    if start >= n:
+        raise ValueError(f"line {line_id}: {n} samples is too short (jam {jam_idx} + window {window})")
+
+    dr_x = np.concatenate([tx[:jam_idx], dr.x])
+    dr_y = np.concatenate([ty[:jam_idx], dr.y])
+    dr_row = {"line": line_id, "sensor": "-", "denoiser": "dead_reckoning",
+              "signal_err_std_nT": None, "signal_rmse_nT": None,
+              "accepted": None, "windows": None}  # fmt: skip
+    dr_row.update(position_metrics(dr_x, dr_y, tx, ty, start))
+    return {
+        "line": line_id,
+        "map_file": map_path,
+        "sens": sens,
+        "truth": truth,
+        "tile": tile,
+        "n": n,
+        "jam_idx": jam_idx,
+        "tx": tx,
+        "ty": ty,
+        "fix_xy": fix_xy,
+        "dr": dr,
+        "start": start,
+        "dr_x": dr_x,
+        "dr_y": dr_y,
+        "dr_row": dr_row,
+        "seed_used": seed_used,
+    }
+
+
+def score_result(ctx: dict, mag_key: str, name: str, cleaned, sig, nav) -> dict:
+    """Results entry for one sensor/denoiser: GPS-aided lead-in + nav track, metrics row."""
+    tx, ty, jam_idx, start = ctx["tx"], ctx["ty"], ctx["jam_idx"], ctx["start"]
+    ex = np.concatenate([tx[:jam_idx], nav.x])  # GPS-aided lead-in, then nav
+    ey = np.concatenate([ty[:jam_idx], nav.y])
+    row = {"line": ctx["line"], "sensor": mag_key, "denoiser": name}
+    row.update(signal_metrics(cleaned, ctx["truth"].mag_1_c, start))
+    row.update(position_metrics(ex, ey, tx, ty, start))
+    row["accepted"] = int(nav.accepted.sum())
+    row["windows"] = len(nav.window_end)
+    return {
+        "cleaned": cleaned,
+        "signal": sig,
+        "x": ex,
+        "y": ey,
+        "window_end": nav.window_end,
+        "ncc": nav.ncc,
+        "accepted": nav.accepted,
+        "metrics": row,
+    }
+
+
+def line_out(ctx: dict, results: dict) -> dict:
+    """run_pipeline out_lines entry (the input of artifact.line_entry)."""
+    sens, truth, tile = ctx["sens"], ctx["truth"], ctx["tile"]
+    return {
+        "line": ctx["line"],
+        "map_file": ctx["map_file"],
+        "tile": tile,
+        "frame": dataclasses.asdict(tile.frame),
+        "n": ctx["n"],
+        "jam_idx": ctx["jam_idx"],
+        "jam_t": float(sens.t[ctx["jam_idx"]]),
+        "metric_start": ctx["start"],
+        "t": sens.t,
+        "truth_x": ctx["tx"],
+        "truth_y": ctx["ty"],
+        "truth_anomaly": truth.mag_1_c - sens.igrf - sens.diurnal,
+        "dr_x": ctx["dr_x"],
+        "dr_y": ctx["dr_y"],
+        "dr_metrics": ctx["dr_row"],
+        "results": results,
+    }
+
+
 def run_pipeline(
     backend=None, sensors=SENSORS, lines=("1003.02", "1007.06"), truncate=None, seed=SEED
 ) -> dict:
@@ -84,10 +189,7 @@ def run_pipeline(
     fitted, selection = {}, {}
     for mag_key in sensors:
         # D-19: fluxgate + lambda by blocked CV on the calibration line only
-        sel = select_tl_config(cal_sensors, cal_target, mag_key)
-        selection[mag_key] = sel
-        dens = build_denoisers(mag_key, backend, fluxgate=sel["fluxgate"], lam=sel["lambda"])
-        fitted[mag_key] = {name: d.fit(cal_sensors, cal_target) for name, d in dens.items()}
+        fitted[mag_key], selection[mag_key] = fit_sensor(cal_sensors, cal_target, mag_key, backend)
     tl_config, krr_config, quantum_config = {}, {}, {}
     for mag_key in sensors:
         krr = fitted[mag_key]["krr"].model
@@ -125,80 +227,28 @@ def run_pipeline(
             },
         }
 
-    window = TERCOM_PARAMS["window"]
     out_lines: dict = {}
     rows: list = []
     bias_signs: dict = {}
     line_seeds: dict = {}
     for line_id in lines:
-        line_path, map_path = HELD_OUT[line_id]
-        sens, truth = load_line(line_path)
-        if truncate is not None:
-            sens, truth = _truncate(sens, int(truncate)), _truncate(truth, int(truncate))
-        tile = load_map(map_path)
-        n = sens.n
-        jam_idx = int(JAM_FRACTION * n)
-        tx, ty = ll_to_local(truth.lat, truth.lon, tile.frame)
-        fix_xy = (float(tx[jam_idx]), float(ty[jam_idx]))  # last GPS fix before the jam
-        line_seeds[line_id] = line_seed(seed, line_id)
-        dr = simulate_dr(sens, jam_idx, fix_xy, seed=line_seeds[line_id], **DR_PARAMS)
-        bias_signs[line_id] = dr.bias_signs
-        start = jam_idx + window  # D-07: magnetic-only segment from the first full window
-        if start >= n:
-            raise ValueError(f"line {line_id}: {n} samples is too short (jam {jam_idx} + window {window})")
-
-        dr_x = np.concatenate([tx[:jam_idx], dr.x])
-        dr_y = np.concatenate([ty[:jam_idx], dr.y])
-        dr_row = {"line": line_id, "sensor": "-", "denoiser": "dead_reckoning",
-                  "signal_err_std_nT": None, "signal_rmse_nT": None,
-                  "accepted": None, "windows": None}  # fmt: skip
-        dr_row.update(position_metrics(dr_x, dr_y, tx, ty, start))
-        rows.append(dr_row)
+        ctx = prepare_line(line_id, seed=seed, truncate=truncate)
+        line_seeds[line_id] = ctx["seed_used"]
+        bias_signs[line_id] = ctx["dr"].bias_signs
+        rows.append(ctx["dr_row"])
 
         results: dict = {}
         for mag_key in sensors:
             results[mag_key] = {}
             for name, den in fitted[mag_key].items():
-                cleaned = den.predict(sens)
-                sig = anomaly_signal(cleaned, sens)
-                nav = tercom(sig, dr, jam_idx, fix_xy, tile, **TERCOM_PARAMS)
-                ex = np.concatenate([tx[:jam_idx], nav.x])  # GPS-aided lead-in, then nav
-                ey = np.concatenate([ty[:jam_idx], nav.y])
-                row = {"line": line_id, "sensor": mag_key, "denoiser": name}
-                row.update(signal_metrics(cleaned, truth.mag_1_c, start))
-                row.update(position_metrics(ex, ey, tx, ty, start))
-                row["accepted"] = int(nav.accepted.sum())
-                row["windows"] = len(nav.window_end)
-                rows.append(row)
-                results[mag_key][name] = {
-                    "cleaned": cleaned,
-                    "signal": sig,
-                    "x": ex,
-                    "y": ey,
-                    "window_end": nav.window_end,
-                    "ncc": nav.ncc,
-                    "accepted": nav.accepted,
-                    "metrics": row,
-                }
+                cleaned = den.predict(ctx["sens"])
+                sig = anomaly_signal(cleaned, ctx["sens"])
+                nav = tercom(sig, ctx["dr"], ctx["jam_idx"], ctx["fix_xy"], ctx["tile"], **TERCOM_PARAMS)
+                entry = score_result(ctx, mag_key, name, cleaned, sig, nav)
+                rows.append(entry["metrics"])
+                results[mag_key][name] = entry
 
-        out_lines[line_id] = {
-            "line": line_id,
-            "map_file": map_path,
-            "tile": tile,
-            "frame": dataclasses.asdict(tile.frame),
-            "n": n,
-            "jam_idx": jam_idx,
-            "jam_t": float(sens.t[jam_idx]),
-            "metric_start": start,
-            "t": sens.t,
-            "truth_x": tx,
-            "truth_y": ty,
-            "truth_anomaly": truth.mag_1_c - sens.igrf - sens.diurnal,
-            "dr_x": dr_x,
-            "dr_y": dr_y,
-            "dr_metrics": dr_row,
-            "results": results,
-        }
+        out_lines[line_id] = line_out(ctx, results)
 
     config = {
         "seed": int(seed),
