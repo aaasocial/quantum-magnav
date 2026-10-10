@@ -8,7 +8,18 @@ This effort is supported by Qollab & IonQ.
 
 ## How to run on Qollab
 
-Instructions are added once the React page is built (next step of Phase 1).
+1. Open the project on Qollab. Use **Chrome or Edge**: the runtime needs WebAssembly JSPI (Firefox 153+ also works; Safari is not supported).
+2. Press **Run** and choose **IonQ Forte 1 (Remote simulator)**. The built-in simulator also works and is instant.
+3. When the page shows the backend info, pick the number of circuits and shots, then press **Submit one job**.
+4. The page shows the counts for each Bell circuit and the raw result JSON. IonQ allows one job per run, so the button locks after the first IonQ job. Press **Stop** and **Run** again to submit another.
+
+## Build the Qollab upload
+
+```bash
+bash scripts/package_qollab.sh
+```
+
+This builds `main.js` and `main.css` from `web/`, then writes `dist/qollab-upload.zip` (the JS project to upload) and `dist/qollab-fallback-py.zip` (a Python-project fallback that runs `main.py`). The script zips an explicit list of runtime files only and checks Qollab's limits (at most 100 files, each under 2 MB, README under 65,000 characters, no `node_modules`, `.env`, `__pycache__` or `.DS_Store`).
 
 ## How to run locally
 
