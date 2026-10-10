@@ -9127,10 +9127,10 @@ function x() {
 		if (pe || le.current) return;
 		le.current = !0, ue.current = !0;
 		let e = fe ? 1 : s;
-		x(!0), oe(null), fe && S(!0), o(`Submitting ${e} circuits × ${l} shots to ${r.name}…`);
+		x(!0), oe(null), fe && S(!0), o(`Submitting ${e} ${e === 1 ? "circuit" : "circuits"} × ${l} shots to ${r.name}…`);
 		try {
 			let t = await f("run_bell_batch", e, l);
-			console.log(JSON.stringify(t)), oe(t);
+			oe(t);
 			let n = t.ok ? `Done in ${t.submit_to_result_s} s. Ordering check: ${t.ordering_ok ? "passed" : "failed"}` : `Error: ${t.error_type}: ${t.error}`;
 			fe && (n += ` ${y}`), o(n);
 		} catch (e) {
@@ -9169,7 +9169,7 @@ function x() {
 				children: [
 					/* @__PURE__ */ (0, m.jsx)("h2", {
 						id: "job-heading",
-						children: "Batched Bell job"
+						children: "Bell job"
 					}),
 					/* @__PURE__ */ (0, m.jsxs)("div", {
 						className: "controls",
@@ -9269,8 +9269,9 @@ function x() {
 					id: "raw-heading",
 					children: "Raw result JSON"
 				}), /* @__PURE__ */ (0, m.jsx)("pre", {
+					role: "region",
+					"aria-labelledby": "raw-heading",
 					tabIndex: 0,
-					"aria-label": "Raw result JSON",
 					children: JSON.stringify(ae, null, 2)
 				})]
 			}),

@@ -93,10 +93,9 @@ export default function App() {
     setBusy(true);
     setResult(null);
     if (isIonq) setIonqLocked(true); // lock before the call: one job per IonQ run
-    setStatus(`Submitting ${n} circuits × ${shots} shots to ${info.name}…`);
+    setStatus(`Submitting ${n} ${n === 1 ? 'circuit' : 'circuits'} × ${shots} shots to ${info.name}…`);
     try {
       const res = await callPy('run_bell_batch', n, shots);
-      console.log(JSON.stringify(res));
       setResult(res);
       let message = res.ok
         ? `Done in ${res.submit_to_result_s} s. Ordering check: ${res.ordering_ok ? 'passed' : 'failed'}`
@@ -143,7 +142,7 @@ export default function App() {
       </section>
 
       <section aria-labelledby="job-heading">
-        <h2 id="job-heading">Batched Bell job</h2>
+        <h2 id="job-heading">Bell job</h2>
         <div className="controls">
           <div className="field">
             <label htmlFor={circuitsId}>Circuits per job</label>
@@ -206,7 +205,7 @@ export default function App() {
       {result && (
         <section aria-labelledby="raw-heading">
           <h2 id="raw-heading">Raw result JSON</h2>
-          <pre tabIndex={0} aria-label="Raw result JSON">{JSON.stringify(result, null, 2)}</pre>
+          <pre role="region" aria-labelledby="raw-heading" tabIndex={0}>{JSON.stringify(result, null, 2)}</pre>
         </section>
       )}
 
