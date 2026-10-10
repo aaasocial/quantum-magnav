@@ -58,12 +58,16 @@ Figures:
 
 ## Method notes
 
-**Tolles-Lawson fluxgate and ridge lambda (decision D-19).** The aircraft carries four vector fluxgates (`flux_a` to `flux_d`). For each cabin sensor, the pipeline picks the fluxgate used by Tolles-Lawson, and the ridge lambda, jointly. It uses 5-fold blocked cross-validation (5 contiguous time blocks) on the calibration line 1006.08 only. The score is the full-band out-of-block RMSE of the compensated cabin magnetometer against the compensated reference `mag_1_c`, with the calibration offset fitted on the training blocks. The held-out lines 1003.02 and 1007.06 are never consulted. The chosen fluxgate also drives TL+currents (whose lambda is chosen by the same CV with that fluxgate fixed) and the 22 KRR/quantum features for that sensor. The choice is printed by `main.py` and stored in the run artifact's provenance (`provenance.tl`).
+**Tolles-Lawson fluxgate and ridge lambda (decision D-19).** The aircraft carries four vector fluxgates (`flux_a` to `flux_d`). For each cabin sensor, the pipeline picks the fluxgate used by Tolles-Lawson, and the ridge lambda, jointly. It uses 5-fold blocked cross-validation (5 contiguous time blocks) on the calibration line 1006.08 only. The score is the full-band out-of-block RMSE of the compensated cabin magnetometer against the compensated reference `mag_1_c`, with the calibration offset fitted on the training blocks. No parameter of TL, TL+currents or KRR is fitted or selected on the held-out lines 1003.02 and 1007.06: every fit and selection uses 1006.08 only. The navigator design (the 0.85 correlation gate, coasting, and the recursive prior) and the move to calibration-only CV were, however, decided after prototype runs on those two lines, so they are not a blind test of the method. The chosen fluxgate also drives TL+currents (whose lambda is chosen by the same CV with that fluxgate fixed) and the 22 KRR/quantum features for that sensor. The choice is printed by `main.py` and stored in the run artifact's provenance (`provenance.tl`).
 
 | Sensor | Fluxgate | Lambda | CV RMSE on 1006.08 | TL+currents lambda |
 |---|---|---|---|---|
-| Mag 5 (`mag_5_uc`) | flux_a | 0.1 | 18.3 nT | 1e-4 |
-| Mag 4 (`mag_4_uc`) | flux_a | 0.01 | 86.8 nT | 1e-4 |
+| Mag 5 (`mag_5_uc`) | flux_a | 0.1 | 18.3 nT | 0.1 |
+| Mag 4 (`mag_4_uc`) | flux_a | 0.01 | 86.8 nT | 0.01 |
+
+**TL+currents and the residual models.** TL+currents adds the four largest-std aircraft current channels as regressors. They are fitted in the TL band (0.1-0.9 Hz), and their contribution is also applied in that band, so current steps and offsets outside the band are not subtracted. The KRR baseline, and the quantum slot that shares its wrapper, model what TL leaves behind: the full-band TL residual on 1006.08, from the same 22 per-sample features. Their correction is subtracted at full band, the same band they are trained on. KRR's gamma and lambda come from 5-block CV on 1006.08 only. KRR lowers the error on the calibration line, but it does not carry over to every held-out line: for Mag 4 on 1007.06 it makes navigation worse than plain TL. The table reports this as measured; nothing was retuned after seeing it.
+
+**Dead reckoning.** Each held-out line gets its own simulated INS drift. The per-line seed is derived from the base seed and the line id, and it is recorded in the artifact's `provenance.ins_drift`.
 
 ## Originality
 
