@@ -197,7 +197,13 @@ def build_run_artifact(result: dict, provenance: dict) -> dict:
         "jam_fraction": cfg["jam_fraction"],
         "cal_line": cfg["cal_line"],
         "ins_drift": {
-            line_id: {"bias_mps": cfg["dr"]["bias_mps"], "bias_signs": signs, "rw_sigma_mps_per_sqrt_s": cfg["dr"]["rw_sigma"]}
+            line_id: {
+                "seed": cfg["dr"]["line_seeds"][line_id],
+                "seed_rule": "SeedSequence([seed, int(line_id without '.')]).generate_state(1)[0]",
+                "bias_mps": cfg["dr"]["bias_mps"],
+                "bias_signs": signs,
+                "rw_sigma_mps_per_sqrt_s": cfg["dr"]["rw_sigma"],
+            }
             for line_id, signs in cfg["dr"]["bias_signs"].items()
         },
         "tl": cfg["tl"],

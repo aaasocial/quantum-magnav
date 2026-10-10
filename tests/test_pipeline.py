@@ -2,7 +2,7 @@
 
 import math
 
-from magnav.pipeline import run_pipeline
+from magnav.pipeline import line_seed, run_pipeline
 
 
 def test_thin_pipeline():
@@ -16,3 +16,13 @@ def test_thin_pipeline():
         assert 0.0 <= r["pct_under_556"] <= 100.0
     assert res["config"]["dr"]["bias_signs"]["1003.02"]
     assert res["config"]["seed"] == 0
+    assert res["config"]["dr"]["line_seeds"] == {"1003.02": line_seed(0, "1003.02")}
+
+
+def test_line_seed_per_line_and_deterministic():
+    """WR-03: the held-out lines get different, reproducible DR seeds."""
+    a, b = line_seed(0, "1003.02"), line_seed(0, "1007.06")
+    assert a != b
+    assert a == line_seed(0, "1003.02")
+    assert line_seed(1, "1003.02") != a
+    assert all(isinstance(v, int) and v >= 0 for v in (a, b))

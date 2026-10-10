@@ -52,6 +52,16 @@ TERCOM_PARAMS = {
 DR_PARAMS = {"bias_mps": 0.3, "rw_sigma": 0.05}
 
 
+def line_seed(seed: int, line_id: str) -> int:
+    """Deterministic per-line DR seed from the base seed and the line id (WR-03).
+
+    Each held-out line gets its own drift realisation (bias signs and random walk);
+    the mapping is fixed (no Python hash randomisation), so runs are reproducible.
+    """
+    ss = np.random.SeedSequence([int(seed), int(line_id.replace(".", ""))])
+    return int(ss.generate_state(1)[0])
+
+
 def _truncate(obj, n: int):
     """Slice every per-sample array (and dict of arrays) of a frozen dataclass to n."""
     changes = {}
@@ -119,6 +129,7 @@ def run_pipeline(
     out_lines: dict = {}
     rows: list = []
     bias_signs: dict = {}
+    line_seeds: dict = {}
     for line_id in lines:
         line_path, map_path = HELD_OUT[line_id]
         sens, truth = load_line(line_path)
@@ -129,7 +140,8 @@ def run_pipeline(
         jam_idx = int(JAM_FRACTION * n)
         tx, ty = ll_to_local(truth.lat, truth.lon, tile.frame)
         fix_xy = (float(tx[jam_idx]), float(ty[jam_idx]))  # last GPS fix before the jam
-        dr = simulate_dr(sens, jam_idx, fix_xy, seed=seed, **DR_PARAMS)
+        line_seeds[line_id] = line_seed(seed, line_id)
+        dr = simulate_dr(sens, jam_idx, fix_xy, seed=line_seeds[line_id], **DR_PARAMS)
         bias_signs[line_id] = dr.bias_signs
         start = jam_idx + window  # D-07: magnetic-only segment from the first full window
 
@@ -194,7 +206,7 @@ def run_pipeline(
         "default_sensor": DEFAULT_SENSOR,
         "thresholds_m": list(THRESHOLDS_M),
         "tercom": dict(TERCOM_PARAMS, prior="recursive_ins_propagated"),
-        "dr": dict(DR_PARAMS, seed=int(seed), bias_signs=bias_signs),
+        "dr": dict(DR_PARAMS, seed=int(seed), line_seeds=line_seeds, bias_signs=bias_signs),
         "tl": tl_config,
         "krr": krr_config,
         "quantum": quantum_config,
