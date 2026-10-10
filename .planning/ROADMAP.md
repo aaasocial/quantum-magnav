@@ -56,7 +56,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — uv/Python 3.13 pinned env, compliance set (LICENSE, README attribution/theme/disclosure), magnav.api one-job Bell API + main.py fallback
+- [x] 01-01-PLAN.md — uv/Python 3.13 pinned env, compliance set (LICENSE, README attribution/theme/disclosure), magnav.api one-job Bell API + main.py fallback
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
