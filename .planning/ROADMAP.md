@@ -31,7 +31,7 @@ The research SUMMARY proposed 7 phases. Under the "coarse" granularity setting, 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Scaffold, Compliance and Qollab Smoke Test** - Prove the Qollab runtime end to end and commit every compliance artifact (~3 h) (completed 2026-10-10)
-- [ ] **Phase 2: Real Flight Data and Classical Pipeline** - Preprocess SGL 2020 lines and Ottawa maps into <2 MB excerpts, Truth/Sensors split, simulated INS drift, Tolles-Lawson and KRR baselines, windowed-correlation nav, metrics and the precomputed artifact (~8 h)
+- [x] **Phase 2: Real Flight Data and Classical Pipeline** - Preprocess SGL 2020 lines and Ottawa maps into <2 MB excerpts, Truth/Sensors split, simulated INS drift, Tolles-Lawson and KRR baselines, windowed-correlation nav, metrics and the precomputed artifact (~8 h) (completed 2026-10-10)
 - [ ] **Phase 3: Frontend Vertical Slice** - Accessible React player showing the drone hold position after GPS jamming, with in-page compute and precomputed fallback (~5 h)
 - [ ] **Phase 4: Quantum Denoiser and IonQ Runs** - Replace the quantum stub with the feature-map denoiser, one single-circuit IonQ Forte 1 job (Qollab rejects multi-circuit jobs), and the early hardware capture (~9 h)
 - [ ] **Phase 5: Benchmarks, Accessibility and Polish** - Multi-segment benchmark evidence, training-size and cabin-sensor sweeps, reproducibility kit, dual-drone view, accessibility audit (~3 h)
@@ -96,7 +96,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — RunArtifact v1 `data/precomputed_run.json` (<2 MB), D-17 acceptance checks (6/6 PASS), results/ figures, README data citation and reproduction
+- [x] 02-03-PLAN.md — RunArtifact v1 `data/precomputed_run.json` (<2 MB), D-17 acceptance checks (6/6 PASS), results/ figures, README data citation and reproduction
 
 ### Phase 3: Frontend Vertical Slice
 
