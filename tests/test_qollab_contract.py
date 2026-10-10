@@ -1,7 +1,11 @@
 """Static checks that the built artifacts match Qollab's JS-project contract."""
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "index.html"
@@ -10,6 +14,14 @@ MAIN_CSS = ROOT / "main.css"
 ATTRIBUTION = "This effort is supported by Qollab & IonQ."
 MAX_FILE_BYTES = 2 * 1024 * 1024
 FORBIDDEN_TAGS = re.compile(r"<script|<html|<head|<body", re.IGNORECASE)
+# Any ES export statement, minified or not: `export {`, `;export{x}`, `export *`, `export default`,
+# `export const/let/var/function/class`.
+EXPORT_STMT = re.compile(
+    r"(^|[;})\s])export\s*(\{|\*|default\b|const\b|let\b|var\b|function\b|class\b|async\b)",
+    re.MULTILINE,
+)
+WEB = ROOT / "web"
+VITE = WEB / "node_modules" / ".bin" / "vite"
 
 
 def test_index_html_body_only():
@@ -25,10 +37,41 @@ def test_main_js_first_line():
 
 def test_main_js_no_exports_and_size():
     text = MAIN_JS.read_text(encoding="utf-8")
-    assert not any(line.startswith("export") for line in text.splitlines())
-    assert "export{" not in text
-    assert "export default" not in text
+    match = EXPORT_STMT.search(text)
+    assert match is None, text[max(0, match.start() - 40) : match.end() + 40]
     assert MAIN_JS.stat().st_size < MAX_FILE_BYTES
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    ["export { a };", "x();export{a}", "}export * from 'y'", "export default App", "export const a = 1"],
+)
+def test_export_regex_catches_minified_forms(snippet):
+    assert EXPORT_STMT.search(snippet)
+
+
+def test_export_regex_ignores_identifiers():
+    assert not EXPORT_STMT.search("const exports = {}; module.exports = x; reexport(y);")
+
+
+@pytest.mark.skipif(
+    not VITE.exists() or shutil.which("node") is None,
+    reason="web/node_modules not installed (run npm --prefix web ci)",
+)
+def test_committed_bundle_matches_fresh_build(tmp_path):
+    """The committed main.js/main.css must be what web/src builds to (no stale bundle)."""
+    subprocess.run(
+        [str(VITE), "build", "--outDir", str(tmp_path), "--emptyOutDir", "--logLevel", "error"],
+        cwd=WEB,
+        check=True,
+        capture_output=True,
+        timeout=180,
+    )
+    for name in ("main.js", "main.css"):
+        fresh = (tmp_path / name).read_bytes()
+        assert fresh == (ROOT / name).read_bytes(), (
+            f"{name} is stale: run `npm --prefix web run build` and commit it"
+        )
 
 
 def test_main_js_contents():
