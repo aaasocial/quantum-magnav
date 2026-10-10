@@ -1,7 +1,12 @@
-"""Qollab Python-project fallback and local end-to-end runner.
+"""Qollab Python-project fallback and local one-command pipeline runner.
 
-On Qollab the platform injects a pre-created `backend` global; locally we fall back
-to Qiskit's BasicSimulator. Deliberately no main() function: Qollab auto-calls one.
+Runs the classical MagNav pipeline on the real SGL 2020 excerpts: fit denoisers on the
+calibration line 1006.08, jam GPS 25% into the held-out lines 1003.02 and 1007.06, then
+navigate magnetic-only with TERCOM on the Ottawa map tiles and print the metrics table.
+
+On Qollab the platform injects a pre-created `backend` global; locally we fall back to
+Qiskit's BasicSimulator (kept for the quantum denoiser slot). Deliberately no main()
+function: Qollab auto-calls one.
 """
 
 if "backend" not in globals():  # local only; on Qollab `backend` is injected
@@ -9,13 +14,17 @@ if "backend" not in globals():  # local only; on Qollab `backend` is injected
 
     backend = BasicSimulator()
 
-import sys
+from magnav.metrics import format_metrics_table
+from magnav.pipeline import run_pipeline
 
-from magnav.api import backend_info, run_bell_batch
-
-# 1 circuit by default: Qollab's IonQ proxy accepts only single-circuit jobs, and
-# IonQ allows one job per run. Locally: `uv run python main.py 32` for a batch.
-n_circuits = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 1
-
-print(backend_info(backend))
-print(run_bell_batch(backend, n_circuits, 200))
+result = run_pipeline()
+cfg = result["config"]
+print("Quantum MagNav - classical pipeline on SGL 2020 (calibration line 1006.08)")
+print(
+    f"seed={cfg['seed']}  INS bias={cfg['dr']['bias_mps']} m/s  random walk={cfg['dr']['rw_sigma']} m/s/sqrt(s)  "
+    f"TERCOM gate={cfg['tercom']['gate']}"
+)
+for line_id, info in result["lines"].items():
+    print(f"Line {line_id}: GPS jammed at t={info['jam_t']:.1f} s (index {info['jam_idx']}) of {info['n']} samples")
+print()
+print(format_metrics_table(result["metrics_table"]))
