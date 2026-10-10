@@ -10,7 +10,7 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 ### Platform & Compliance
 
 - [x] **PLAT-01**: Project is a Qollab JS project (`index.html` + Vite-built single `main.js`/`main.css` + `magnav/` Python package + `requirements.txt` + `data/`) that runs entirely in the visitor's browser on Qollab.xyz
-- [ ] **PLAT-02**: A Phase-1 smoke test proves a Vite-bundled React page can call an in-page Python module and run one `backend.run` Bell-circuit job on IonQ Forte 1 (remote simulator) from Qollab, with findings (max circuits per job, shot limits, hardware credits) recorded in the repo. *(Amended 2026-10-10: Qollab's IonQ proxy accepts only single-circuit jobs (`ionq.circuit.v1`); multi-circuit batches return HTTP 400. Proven with one circuit at 200 and 4096 shots.)*
+- [x] **PLAT-02**: A Phase-1 smoke test proves a Vite-bundled React page can call an in-page Python module and run one `backend.run` Bell-circuit job on IonQ Forte 1 (remote simulator) from Qollab, with findings (max circuits per job, shot limits, hardware credits) recorded in the repo. *(Amended 2026-10-10: Qollab's IonQ proxy accepts only single-circuit jobs (`ionq.circuit.v1`); multi-circuit batches return HTTP 400. Proven with one circuit at 200 and 4096 shots.)*
 - [x] **PLAT-03**: Local dev environment uses Python 3.13 via `uv` with pins matching Qollab/Pyodide (qiskit 2.5.2, numpy 2.4.x, scipy 1.18.x, scikit-learn 1.8.x) so code that works locally works on Qollab
 - [x] **PLAT-04**: Repo contains the MIT LICENSE, the verbatim attribution line "This effort is supported by Qollab & IonQ.", the Quantum Impact theme tag, and a disclosure section listing AI tools and libraries used, all committed in the first phase
 - [x] **PLAT-05**: All code is written during the build window; no pre-existing code is reused
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PLAT-01 | Phase 1 | Complete |
-| PLAT-02 | Phase 1 | Pending |
+| PLAT-02 | Phase 1 | Complete |
 | PLAT-03 | Phase 1 | Complete |
 | PLAT-04 | Phase 1 | Complete |
 | PLAT-05 | Phase 1 | Complete |
