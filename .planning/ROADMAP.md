@@ -48,10 +48,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The published smoke-test project opens from a logged-out browser
   4. `uv sync` on Python 3.13 installs the pinned stack (qiskit 2.5.2, numpy 2.4.x, scipy 1.18.x, scikit-learn 1.8.x) and the same `magnav` import that works on Qollab works locally
   5. The repo contains the MIT LICENSE, the verbatim line "This effort is supported by Qollab & IonQ.", the Quantum Impact theme tag, and an AI-tools/library disclosure section, with first commits dated inside the build window
-**Plans**: 2 plans
+**Plans**: 3 plans
 Plans:
 - [ ] 01-01-PLAN.md — uv/Python 3.13 pinned env, compliance set (LICENSE, README attribution/theme/disclosure), magnav.api one-job Bell API + main.py fallback
-- [ ] 01-02-PLAN.md — React smoke page bundled to main.js via Vite lib mode, packaging zips, findings template, human Qollab checkpoint (IonQ Forte 1 run, 32/64/128 probe, publish, logged-out, credits)
+- [ ] 01-02-PLAN.md — Vite lib-mode toolchain, magnav.api bridge and React smoke page bundled to root main.js/main.css, Qollab contract test
+- [ ] 01-03-PLAN.md — Packaging zips, findings template with prepared repo commands, human Qollab checkpoint (public repo, IonQ Forte 1 run, 32/64/128 probe, publish, logged-out, credits)
 
 ### Phase 2: Synthetic World and Classical Pipeline
 **Goal**: Running one command simulates a GPS-jammed drone flight over a synthetic anomaly map and shows, with numbers, that raw-signal navigation drifts while classically cleaned navigation holds position; this is the valid-even-if-quantum-fails floor

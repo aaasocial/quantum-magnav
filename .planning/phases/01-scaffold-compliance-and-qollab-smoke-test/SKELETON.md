@@ -30,11 +30,11 @@ A visitor presses Run on Qollab, chooses IonQ Forte 1 (Remote simulator), clicks
 
 ## Stack Touched in Phase 1
 
-- [ ] Project scaffold: uv project + pytest + ruff (Python); Vite + React lib-mode build (JS); `scripts/package_qollab.sh`. *(Plans 01-01 and 01-02)*
+- [ ] Project scaffold: uv project + pytest + ruff (Python); Vite + React lib-mode build (JS); `scripts/package_qollab.sh`. *(Plans 01-01, 01-02 and 01-03)*
 - [ ] Routing (adapted): a single Qollab entry page (`index.html` → `main.js`). This is a single-page demo with no router. *(Plan 01-02)*
 - [ ] Data layer (adapted, replaces "DB read/write"): the React page calls a real in-page Python function (`backend_info`, which reads `data/smoke.json`), and that Python submits one real batched `backend.run` Bell job (`run_bell_batch`) and returns counts that the page renders. *(Plan 01-01 builds the Python side; Plan 01-02 wires the page)*
 - [ ] UI: a **Submit one job** button with circuit/shot selects, wired to `run_bell_batch` through `callPromising`. It locks after one IonQ submission. *(Plan 01-02)*
-- [ ] Deployment: the upload zip is published on Qollab and opens logged out. This is **human-verified** at the Plan 01-02 checkpoint. The documented local full-stack command is `uv run python main.py` (Python path) plus `npm --prefix web run dev` (UI with the JS stub). *(Plan 01-02)*
+- [ ] Deployment: the upload zip is published on Qollab and opens logged out. This is **human-verified** at the Plan 01-03 checkpoint. The documented local full-stack command is `uv run python main.py` (Python path) plus `npm --prefix web run dev` (UI with the JS stub). *(Plan 01-03)*
 
 ## Out of Scope (Deferred to Later Slices)
 

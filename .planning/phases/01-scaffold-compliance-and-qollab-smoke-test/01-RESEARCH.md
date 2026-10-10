@@ -604,13 +604,13 @@ Second-job behaviour (exact text): ___
 | A6 | Pyodide license MPL-2.0; Claude model naming "Claude Opus 5.5" in the disclosure | Compliance | Minor. Confirm wording before final README |
 | A7 | uv installer script installs into `~/.local/bin` | Installation | Use `python3 -m pip install --user uv` fallback |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Max circuits per job and per-job gate limits on the Forte remote sim.** Undocumented. The probe answers it. Phase 4 sizes to the largest passing N with margin.
-2. **Whether Qollab's qiskit-ionq version is 1.0.2 or newer.** Docs fetched today don't state it. `backend_info` can add `qiskit_ionq.__version__` via a guarded import. Recommend adding that line.
-3. **Hardware credits.** Only Slack or the balance can answer. QNT-06 falls back to the labeled forte-1 proxy.
-4. **Repo remote.** No `origin` exists. Creating a public GitHub repo and pushing is a user action (`gh` exists at `~/.local/bin/gh`, auth unknown). The plan should include it as an optional human step, required by Phase 6 at the latest.
-5. **Whether anonymous visitors can run IonQ jobs.** Record it. It doesn't block criterion 3.
+1. **Max circuits per job and per-job gate limits on the Forte remote sim.** Undocumented. The probe answers it. Phase 4 sizes to the largest passing N with margin. RESOLVED: deferred to the Plan 03 Task 2 human probe (steps 4-5), recorded in docs/QOLLAB_FINDINGS.md (probe table, "Max circuits per job confirmed" line, Decision section).
+2. **Whether Qollab's qiskit-ionq version is 1.0.2 or newer.** Docs fetched today don't state it. `backend_info` can add `qiskit_ionq.__version__` via a guarded import. Recommend adding that line. RESOLVED: `backend_info` reports `qiskit_ionq` via a guarded import (Plan 01 Task 2); the human records the value at Plan 03 Task 2 steps 2-3 in docs/QOLLAB_FINDINGS.md.
+3. **Hardware credits.** Only Slack or the balance can answer. QNT-06 falls back to the labeled forte-1 proxy. RESOLVED: deferred to the Plan 03 Task 2 human checkpoint (step 9: balance + #hackathon-help), recorded in the Credits section of docs/QOLLAB_FINDINGS.md.
+4. **Repo remote.** No `origin` exists. Creating a public GitHub repo and pushing is a user action (`gh` exists at `~/.local/bin/gh`, auth unknown). The plan should include it as an optional human step, required by Phase 6 at the latest. RESOLVED: Plan 03 Task 1 runs the secret scan and writes the exact commands into docs/QOLLAB_FINDINGS.md without pushing; the builder creates the public repo at the Plan 03 Task 2 checkpoint (step 0).
+5. **Whether anonymous visitors can run IonQ jobs.** Record it. It doesn't block criterion 3. RESOLVED: deferred to the Plan 03 Task 2 human checkpoint (step 8, incognito check), recorded in the Publishing section of docs/QOLLAB_FINDINGS.md.
 
 ## Environment Availability
 
