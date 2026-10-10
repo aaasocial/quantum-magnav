@@ -121,7 +121,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 03-02-PLAN.md — JS data + map core: pinned deps, serialized bridge + dev stub (?raw), artifact/playback/colormap/geo libs with node tests, theme, usePlayback, cividis MapView
+- [x] 03-02-PLAN.md — JS data + map core: pinned deps, serialized bridge + dev stub (?raw), artifact/playback/colormap/geo libs with node tests, theme, usePlayback, cividis MapView
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
