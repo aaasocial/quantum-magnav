@@ -4,12 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ControlBar from './components/ControlBar.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import MapView from './components/MapView.jsx';
+import Announcer, { announce } from './components/Announcer.jsx';
 import { useArtifact } from './hooks/useArtifact.js';
 import { useReducedMotion } from './hooks/useReducedMotion.js';
 import { playback } from './hooks/usePlayback.js';
-import { lineView, validateLine } from './lib/artifact.js';
+import { drErrorAt, errorAt, lineView, validateLine } from './lib/artifact.js';
+import {
+  createThrottle, finishedText, jamText, loadedText, pausedText, playText, readoutText, selectionText,
+} from './lib/announce.js';
 import { logFrameProbe, logTimerProbe } from './probe.js';
-import { SENSOR_LABELS } from './theme.js';
+import { SENSOR_LABELS, SERIES } from './theme.js';
 
 const DEFAULT_LINE = '1003.02';
 const DEFAULT_TRACK = 'tl';
@@ -19,6 +23,7 @@ const IDLE_LIMIT_MS = 30 * 60 * 1000; // keep-alive bound: 30 min with no input
 const IDLE_CHECK_MS = 30 * 1000;
 const RUN_ENDED_MESSAGE = 'This run has ended. Press Stop, then Run, to start a new one.';
 const IDLE_MESSAGE = `Keep-alive limit (30 min) reached. ${RUN_ENDED_MESSAGE}`;
+const READOUT_EVERY_MS = 10 * 1000; // announced error readout: at most once per 10 s wall time
 
 // main.jsx awaits runDone to keep the Qollab run alive. It resolves only on End run or the
 // idle bound; never because no backend is selected (the replay needs none). Resolving twice is harmless.
@@ -55,6 +60,60 @@ export default function App() {
 
   const viewRef = useRef(view);
   viewRef.current = view;
+  const trackRef = useRef(mapTrack);
+  trackRef.current = mapTrack;
+  const loadedAnnounced = useRef(false);
+
+  const sensorLabelOf = (s) => (s ? (SENSOR_LABELS[s] ?? s) : '');
+  const trackLabelOf = (k) => SERIES[k]?.label ?? k;
+
+  // Initial artifact ready (once).
+  useEffect(() => {
+    if (!view || loadedAnnounced.current) return;
+    loadedAnnounced.current = true;
+    announce(loadedText(view.id, sensorLabelOf(activeSensor)));
+  }, [view, activeSensor]);
+
+  // Playback announcements: play/pause, jam crossed once per forward pass, the throttled
+  // error readout while playing after the metric start, and replay finished.
+  useEffect(() => {
+    const readoutAllowed = createThrottle(READOUT_EVERY_MS);
+    let prevIdx = playback.getIndex();
+    const offPlay = playback.on('play', () => {
+      readoutAllowed.mark();
+      announce(playText(playback.getSpeed()));
+    });
+    const offPause = playback.on('pause', () => announce(pausedText(playback.getTime())));
+    const offEnd = playback.on('end', () => {
+      const v = viewRef.current;
+      if (!v) return;
+      const k = trackRef.current;
+      announce(finishedText(trackLabelOf(k), errorAt(v, k, v.n - 1)));
+    });
+    const unsubscribe = playback.subscribe(() => {
+      const v = viewRef.current;
+      const idx = playback.getIndex();
+      const prev = prevIdx;
+      prevIdx = idx;
+      if (!v || !playback.isPlaying()) return;
+      if (prev < v.jamIdx && v.jamIdx <= idx) {
+        readoutAllowed.mark();
+        announce(jamText(v.jamT));
+        return;
+      }
+      if (idx >= v.metricStartIdx && idx < v.n && readoutAllowed()) {
+        const k = trackRef.current;
+        const err = errorAt(v, k, idx);
+        if (err !== null) announce(readoutText(v.t[idx], trackLabelOf(k), err, drErrorAt(v, idx)));
+      }
+    });
+    return () => {
+      offPlay();
+      offPause();
+      offEnd();
+      unsubscribe();
+    };
+  }, []);
 
   // A new line/sensor view: load its time axis (pauses and resets to index 0).
   useEffect(() => {
@@ -152,12 +211,14 @@ export default function App() {
     playback.pause();
     playback.seekIndex(0);
     setLine(id);
-  }, []);
+    announce(selectionText(id, sensorLabelOf(activeSensor)));
+  }, [activeSensor]);
   const onSensorChange = useCallback((s) => {
     playback.pause();
     playback.seekIndex(0);
     setSensor(s);
-  }, []);
+    announce(selectionText(line, sensorLabelOf(s)));
+  }, [line]);
   const onToggleSeries = useCallback((key, on) => {
     setVisible((prev) => {
       const next = new Set(prev);
@@ -174,7 +235,7 @@ export default function App() {
   const controlsDisabled = status !== 'ready' || !view;
   const lines = artifact ? artifact.lines.map((l) => String(l.line)) : [DEFAULT_LINE];
   const sensors = artifact ? artifact.sensors : Object.keys(SENSOR_LABELS);
-  const sensorLabel = activeSensor ? (SENSOR_LABELS[activeSensor] ?? activeSensor) : '';
+  const sensorLabel = sensorLabelOf(activeSensor);
 
   return (
     <main className="page">
@@ -221,6 +282,8 @@ export default function App() {
       </div>
 
       <div className="results-slot" />
+
+      <Announcer />
 
       <footer>
         <p>This effort is supported by Qollab &amp; IonQ.</p>
