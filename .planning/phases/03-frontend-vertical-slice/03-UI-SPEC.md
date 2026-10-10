@@ -1,7 +1,8 @@
 ---
 phase: 3
 slug: frontend-vertical-slice
-status: draft
+status: approved
+reviewed_at: 2026-10-10
 shadcn_initialized: false
 preset: none
 created: 2026-10-10
@@ -87,7 +88,8 @@ Weights: 400 regular and 600 semibold. No other weights. Headings: `h1` uses Hea
 | Dominant (60%) | `--color-bg` | `#111318` | Page background (`:root` and `body`) |
 | Secondary (30%) | `--color-surface` | `#1A1D24` | Control bar, map and signal panels, status strip, table header row, `details` bodies |
 | Secondary, raised | `--color-surface-2` | `#242833` | Unselected badge background, hover on buttons and rows, select background |
-| Border | `--color-border` | `#3A404C` | Panel borders, table borders, control borders (3.1:1 on bg, enough for non-text UI) |
+| Border | `--color-border` | `#3A404C` | Panel borders and table borders only (decorative, ~1.8:1 on bg) |
+| Control border | `--color-border-control` | `#6B7380` | Borders of selects, buttons, checkboxes and the slider track (>= 3:1 on bg per WCAG 1.4.11) |
 | Text | `--color-text` | `#E8EAED` | All primary text (about 15:1 on bg) |
 | Muted text | `--color-text-muted` | `#A9B0BB` | Help text, provenance line, axis ticks, footer (about 8:1 on bg, about 7:1 on surface) |
 | Accent (10%) | `--color-accent` | `#A5B4FC` | See reserved list below |
@@ -135,7 +137,7 @@ All series use stroke width 2px and `isAnimationActive={false}`. On the map, eve
 |--------|-------|---------------|---------|
 | Drone | 24px quad-rotor glyph (inline SVG) | `#F5F5F5` fill, 1.5px `#000` stroke | True aircraft position at the current index |
 | Estimate | 12px diamond | Map-track series colour, 1.5px `#000` stroke | Navigator's estimated position for the selected map track |
-| Dead reckoning | 10px square | `--series-dr`, 1.5px `#000` stroke | Dead-reckoning-only position |
+| Dead reckoning | 12px square | `--series-dr`, 1.5px `#000` stroke | Dead-reckoning-only position |
 | GPS jammed | 16px circle with an X inside, plus the text label "GPS jammed" | `#FFD166` stroke 2px, `#000` casing | Truth position at `jam.display_index` |
 | Error link | 1px line from drone to estimate | `--color-text` at 60% opacity | Visualises the current position error |
 
@@ -159,6 +161,7 @@ All series use stroke width 2px and `isAnimationActive={false}`. On the map, eve
 4. **Jam banner** slot: a fixed-height region (min-height 40px, so the layout does not jump). It is empty before the jam and shows the banner once the current index is at or after `jam.display_index`.
 5. **Main grid:** map panel (`MapView`) and signal panel (`SignalPanel`).
 6. **Results section:** h2 "Navigation accuracy", metrics mini-table, then the text alternatives (`details`).
+   - Note (deliberate deviation from CONTEXT D-04): the metrics mini-table lives in this results section rather than inside the status strip, and reads `lines[i].metrics` (same numbers as the top-level `metrics_table`); the status strip keeps the mode badge and provenance line.
 7. **Footer** (kept from Phase 1).
 
 **Responsive rule:**
