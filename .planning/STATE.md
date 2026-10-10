@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-10T17:04:35.970Z"
+last_updated: "2026-10-10T17:15:55.904Z"
 last_activity: 2026-10-10
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 33
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 3 of 6 (frontend vertical slice)
-Plan: 2 of 4 complete (03-01 Python live API); next 03-02
+Plan: 3 of 4 complete (03-01 Python live API); next 03-02
 Status: Ready to execute
 Last activity: 2026-10-10
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -63,6 +63,7 @@ Progress: [████████░░] 80%
 | Phase 02 P03 | 21 min | 3 tasks | 16 files |
 | Phase 03 P01 | 7 min | 2 tasks | 7 files |
 | Phase 03 P02 | 12 min | 2 tasks | 22 files |
+| Phase 03 P03 | 9 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-02: estimate/DR overlays and jam marker start at jam.display_index (pre-jam they equal truth exactly)
 - [Phase 03]: 03-02: node lib tests run as node --test "src/lib/*.test.js" (Node 24 rejects a directory argument)
 - [Phase 03]: 03-02: app.css has a MapView section using UI-SPEC tokens only; the Plan 03 theme rewrite must keep it
+- [Phase 03]: 03-03: announce throttle has mark(); Play and jam announcements restart the 10 s readout interval so the readout never clobbers them
+- [Phase 03]: 03-03: keep-alive treats playing / live-in-flight as activity; runDone resolves only on End run or 30 min idle (never on missing backend)
 
 ### Pending Todos
 
@@ -122,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T17:04:25.830Z
+Last session: 2026-10-10T17:15:51.567Z
 Stopped at: Completed 01-03-PLAN.md
 Resume file: None

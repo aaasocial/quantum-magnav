@@ -57,7 +57,7 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 ### Demo UI
 
 - [x] **UI-01**: The React frontend plays back a single `RunArtifact` JSON (versioned schema, columnar, < 2 MB) through one frame player, whether the artifact was computed in-page by Pyodide or loaded from `data/precomputed_run.json`
-- [ ] **UI-02**: Map view shows the real anomaly heatmap tile (Eastern_395 or Renfrew_395, invalid cells visibly hatched or greyed), true path (solid), estimated path (dashed), dead-reckoning-only (simulated INS drift) path, drone icon, GPS-jammed marker, and live position-error readout; a downsampled particle cloud appears only if the optional particle filter (NAVX-03) is built
+- [x] **UI-02**: Map view shows the real anomaly heatmap tile (Eastern_395 or Renfrew_395, invalid cells visibly hatched or greyed), true path (solid), estimated path (dashed), dead-reckoning-only (simulated INS drift) path, drone icon, GPS-jammed marker, and live position-error readout; a downsampled particle cloud appears only if the optional particle filter (NAVX-03) is built
 - [ ] **UI-03**: Signal panel shows truth, raw, TL, classical KRR, and quantum-cleaned traces with toggles, an RMSE badge per series, and a residual subplot
 - [ ] **UI-04**: Metrics panel shows the benchmark table and provenance badges ("computed in-page" vs "precomputed replay"; IonQ backend name, shots, timestamp for the quantum leg; hardware result label)
 - [x] **UI-05**: "Live" mode computes a selectable held-out line or segment (1003.02 or 1007.06) in-page and animates it with `requestAnimationFrame`; if compute or the quantum job fails, the UI automatically falls back to the precomputed replay with identical visuals and a visible badge
@@ -65,8 +65,8 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Accessibility
 
-- [ ] **A11Y-01**: All controls are keyboard-operable with visible focus, charts and toggles have aria-labels, and status changes are announced via aria-live
-- [ ] **A11Y-02**: Meaning is never carried by colour alone (colour-blind-safe palette plus line dash patterns), `prefers-reduced-motion` switches animation to stepped updates, and each chart has a text or table alternative
+- [x] **A11Y-01**: All controls are keyboard-operable with visible focus, charts and toggles have aria-labels, and status changes are announced via aria-live
+- [x] **A11Y-02**: Meaning is never carried by colour alone (colour-blind-safe palette plus line dash patterns), `prefers-reduced-motion` switches animation to stepped updates, and each chart has a text or table alternative
 - [ ] **A11Y-03**: An automated accessibility check (axe or Lighthouse) and a keyboard walkthrough pass before submission
 
 ### Documentation & Submission
@@ -160,13 +160,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | METR-05 | Phase 5 | Pending |
 | METR-06 | Phase 5 | Pending |
 | UI-01 | Phase 3 | Complete |
-| UI-02 | Phase 3 | Pending |
+| UI-02 | Phase 3 | Complete |
 | UI-03 | Phase 3 | Pending |
 | UI-04 | Phase 4 | Pending |
 | UI-05 | Phase 3 | Complete |
 | UI-06 | Phase 5 | Pending |
-| A11Y-01 | Phase 3 | Pending |
-| A11Y-02 | Phase 3 | Pending |
+| A11Y-01 | Phase 3 | Complete |
+| A11Y-02 | Phase 3 | Complete |
 | A11Y-03 | Phase 5 | Pending |
 | DOCS-01 | Phase 6 | Pending |
 | DOCS-02 | Phase 6 | Pending |

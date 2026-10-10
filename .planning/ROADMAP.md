@@ -125,7 +125,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — Playable App shell: ControlBar, StatusStrip, dark theme, MapView mounted, UI-SPEC keyboard map, reduced motion, keep-alive, probes, single aria-live Announcer
+- [x] 03-03-PLAN.md — Playable App shell: ControlBar, StatusStrip, dark theme, MapView mounted, UI-SPEC keyboard map, reduced motion, keep-alive, probes, single aria-live Announcer
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
