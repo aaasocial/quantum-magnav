@@ -4,13 +4,17 @@ This effort is supported by Qollab & IonQ.
 
 **Theme:** Quantum Impact · **License:** MIT (see LICENSE) · **Hackathon:** Qollab × IonQ Hackathon, Oct 9–11, 2026
 
-> Status: Phase 1 smoke test. The Python API submits one batched Bell-circuit job (alternating Φ+ and Ψ+ circuits) to the injected backend and returns the counts as JSON.
+> Status: Phase 1 smoke test. The Python API builds Bell circuits (alternating Φ+ and Ψ+), sends them to the injected backend in one `backend.run` call and returns the counts as JSON.
+
+Repository: https://github.com/aaasocial/quantum-magnav
+
+Qollab project: https://qollab.xyz/u/eehhaa/quantum-magnav
 
 ## How to run on Qollab
 
 1. Open the project on Qollab. Use **Chrome or Edge**: the runtime needs WebAssembly JSPI (Firefox 153+ also works; Safari is not supported).
 2. Press **Run** and choose **IonQ Forte 1 (Remote simulator)**. The built-in simulator also works and is instant.
-3. When the page shows the backend info, pick the number of circuits and shots, then press **Submit one job**.
+3. When the page shows the backend info, pick the number of circuits and shots, then press **Submit one job**. On IonQ Forte 1, choose **1** circuit: each IonQ job holds one Bell circuit, because Qollab's IonQ service accepts only single-circuit jobs and rejects a list of circuits with HTTP 400. The built-in simulator accepts lists (2, 32, 64 or 128 circuits).
 4. The page shows the counts for each Bell circuit and the raw result JSON. IonQ allows one job per run, so the button locks after the first IonQ job. Press **Stop** and **Run** again to submit another.
 
 ## Build the Qollab upload
