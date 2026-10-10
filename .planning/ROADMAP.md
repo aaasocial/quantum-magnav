@@ -84,7 +84,19 @@ Plans:
   5. Estimator and denoiser functions cannot receive the `Truth` object (enforced by signature and a grep/test check); only metrics touch truth
   6. `data/precomputed_run.json` (versioned `RunArtifact`, columnar, under 2 MB) is written from the same run
 
-**Plans**: TBD (target 3: preprocessing script + excerpts + provenance + Truth/Sensors loader + INS drift; TL/low-pass/KRR denoisers; windowed-correlation nav + metrics + artifact)
+**Plans**: 3 plans
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — preprocess_sgl.py excerpts + provenance (<2 MB, byte-identical), Truth/Sensors loader, INS drift, gated recursive-prior TERCOM, metrics, thin `python main.py` (DR/raw/low-pass, both sensors)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Tolles-Lawson and TL+currents fitted on 1006.08, equal-feature numpy KRR, QuantumDenoiser stub (never calls backend.run), six-denoiser run for Mag 5 and Mag 4
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-03-PLAN.md — RunArtifact v1 `data/precomputed_run.json` (<2 MB), D-17 acceptance checks (6/6 PASS), results/ figures, README data citation and reproduction
 
 ### Phase 3: Frontend Vertical Slice
 
