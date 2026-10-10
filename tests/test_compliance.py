@@ -52,5 +52,6 @@ def test_pinned_versions():
     assert version("scikit-learn").startswith("1.8.")
 
 
-def test_python_313():
-    assert sys.version_info[:2] == (3, 13)
+def test_python_matches_requires_python():
+    # pyproject: >=3.13,<3.15. Local dev uses 3.13; Qollab's Pyodide runs 3.14.2.
+    assert (3, 13) <= sys.version_info[:2] < (3, 15)
