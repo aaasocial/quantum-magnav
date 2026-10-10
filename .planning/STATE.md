@@ -94,6 +94,7 @@ None yet.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
+| fast | add submission approval gate for agents (CLAUDE.md, PROJECT.md) | 2026-10-10 | 9d704bd | — |
 | 261010-0kt | replace synthetic world with SGL flight data and Ottawa maps in planning docs | 2026-10-10 | 4785288 | [261010-0kt-replace-synthetic-world-with-sgl-flight-](./quick/261010-0kt-replace-synthetic-world-with-sgl-flight-/) |
 
 ## Deferred Items

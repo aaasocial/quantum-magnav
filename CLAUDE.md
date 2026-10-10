@@ -16,6 +16,15 @@ A hackathon demo of GPS-denied drone navigation by magnetic anomaly matching (Ma
 - **Originality**: all code written during the build window; no prior work reused — hackathon rule
 - **Accessibility**: UI must follow accessibility best practices — explicit submission requirement
 - **Demo reliability**: live simulation must have a precomputed fallback so the judged demo never depends on a live compute path
+## Submission approval gate (hard rule for every agent and subagent)
+
+No agent or subagent may, without the user's explicit, in-words approval of that specific action in the current session, given after seeing exactly what will be submitted:
+
+- **(a) Submit the project to the hackathon** through any submission form, portal, email, or Slack message to organizers.
+- **(b) Publish or republish a Qollab project version** (the Publish action, which changes what visitors see).
+- **(c) Post on the builder's behalf** to #hackathon-help or any organizer channel.
+
+Approval for an earlier publish (for example `v0.1-smoke` on 2026-10-10) does not carry forward to any later publish or submission. Still allowed without asking: uploading files into the Qollab editor without publishing, building the upload zip, pushing to GitHub, and running jobs on simulators. GSD plans must mark any gated step as a human checkpoint (`checkpoint:human-action`) that stops and waits; it is never a task the executor performs.
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:research/STACK.md -->

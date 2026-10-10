@@ -69,6 +69,7 @@ Judges see a drone icon on a map hold its position without GPS because magnetic 
 - **Originality**: all code written during the build window; no prior work reused — hackathon rule
 - **Accessibility**: UI must follow accessibility best practices — explicit submission requirement
 - **Demo reliability**: live simulation must have a precomputed fallback so the judged demo never depends on a live compute path
+- **Submission approval gate**: no agent may submit to the hackathon, publish/republish a Qollab version, or post to organizer channels without the user's explicit in-session approval of that specific action; earlier approvals do not carry forward; such steps are `checkpoint:human-action` in plans — user instruction 2026-10-10, see CLAUDE.md
 
 ## Key Decisions
 
@@ -90,6 +91,7 @@ Judges see a drone icon on a map hold its position without GPS because magnetic 
 | Windowed-correlation (TERCOM-style) navigation is the default; particle filter is an optional stretch | Simpler, faster in Pyodide, standard for 1D anomaly-profile matching | — Pending (2026-10-10) |
 | Phase 5 evidence: multi-segment mean ± std on held-out lines, training-size sweep, cabin-sensor sweep (Mag 3 vs 4 vs 5); map-roughness sweep dropped | Seeds no longer exist; segments and sensors are the real-data sources of variance | — Pending (2026-10-10) |
 | README cites USAF cooperative agreement FA8750-19-2-1000, Gnadt et al. arXiv:2007.12158, MagNav.jl maps; real-data provenance statement replaces the synthetic-data statement | Dataset license and data-sharing agreement require attribution | — Pending (2026-10-10) |
+| Hackathon submission, Qollab Publish, and organizer-channel posts require explicit per-action user approval in-session; executors never perform them | The final submission is irreversible and outward-facing; the user wants to see exactly what goes out before it goes | — Active (2026-10-10) |
 
 ## Evolution
 
