@@ -117,7 +117,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Python live API: resumable tercom_steps, artifact.line_entry, magnav/live.py (stage 2 one fit per call), api.artifact_json + live_start/step/skip/result/cancel, equivalence and no-backend.run tests
+- [x] 03-01-PLAN.md — Python live API: resumable tercom_steps, artifact.line_entry, magnav/live.py (stage 2 one fit per call), api.artifact_json + live_start/step/skip/result/cancel, equivalence and no-backend.run tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
