@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 Phase: 1 of 6 (Scaffold, Compliance and Qollab Smoke Test)
 Plan: 3 of 3 in current phase
 Status: Ready to execute
-Last activity: 2026-10-10
+Last activity: 2026-10-10 - Completed quick task 261010-0kt: replace synthetic world with SGL flight data and Ottawa maps in planning docs
 
 Progress: [███████░░░] 67%
 
@@ -85,6 +85,12 @@ None yet.
 - Windowed-correlation (TERCOM-style) navigation is now the default; the particle filter is an optional stretch, and if built its Pyodide performance is untested (keep particle counts moderate; precompute is the default)
 - Raw data downloads incomplete: Flt1003, Flt1007 and the MagNav.jl `ottawa_area_maps` (Eastern_395.h5, Renfrew_395.h5) are not yet in `data_raw/`; Phase 2 preprocessing needs all of them (verify Flt1006_train.h5 finished downloading)
 - Map coverage unverified: confirm in Phase 2 preprocessing that lines 1003.02 and 1007.06 lie inside the valid (non-k-NN-filled) area of Eastern_395 / Renfrew_395
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 261010-0kt | replace synthetic world with SGL flight data and Ottawa maps in planning docs | 2026-10-10 | 4785288 | [261010-0kt-replace-synthetic-world-with-sgl-flight-](./quick/261010-0kt-replace-synthetic-world-with-sgl-flight-/) |
 
 ## Deferred Items
 
