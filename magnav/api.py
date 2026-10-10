@@ -8,7 +8,7 @@ from qiskit import QuantumCircuit, transpile
 from qiskit import __version__ as QISKIT_VERSION
 
 SMOKE_DATA = "data/smoke.json"  # literal path: Qollab preloads only literal paths
-ALLOWED_CIRCUITS = (2, 32, 64, 128)
+ALLOWED_CIRCUITS = (1, 2, 32, 64, 128)
 ALLOWED_SHOTS = (100, 200, 500, 1024, 4096)
 
 
@@ -84,8 +84,13 @@ def run_bell_batch(backend, n_circuits=2, shots=200) -> str:
     circuits = [_bell(i) for i in range(n)]
     try:
         tqc = transpile(circuits, backend, optimization_level=1)  # 0-1 for IonQ
+        # A bare circuit submits as job type ionq.circuit.v1; a list submits as
+        # ionq.multi-circuit.v1 (qiskit-ionq helpers.py). Qollab's IonQ proxy was
+        # observed (2026-10-10) rejecting multi-circuit with HTTP 400, so n=1 probes
+        # the single-circuit path.
+        payload = tqc[0] if n == 1 else tqc
         t0 = time.time()
-        job = backend.run(tqc, shots=s)  # EXACTLY ONE job per call (IonQ one-job rule)
+        job = backend.run(payload, shots=s)  # EXACTLY ONE job per call (IonQ one-job rule)
         result = job.result()
         counts = [dict(result.get_counts(i)) for i in range(n)]  # never the bare form
         ordering_ok = all(

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { callPy, qBackend } from './bridge.js';
 
-const CIRCUIT_OPTIONS = [2, 32, 64, 128];
+const CIRCUIT_OPTIONS = [1, 2, 32, 64, 128];
 const SHOT_OPTIONS = [100, 200, 500, 1024, 4096];
 const INFO_FIELDS = [
   'name', 'class', 'num_qubits', 'noise_model', 'python', 'qiskit',
