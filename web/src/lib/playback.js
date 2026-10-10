@@ -3,6 +3,10 @@
 // timestamps only (no timer callbacks: Qollab injects its own timer functions).
 
 const EPS = 1e-9;
+// Frame delta clamp (WR-03): rAF timestamps are the frame's begin time, so input handled
+// after it (play/seek set `last` from now()) can make ts - last negative; a long gap (hidden
+// tab, blocked main thread) must not jump the flight either.
+export const MAX_FRAME_MS = 250;
 
 // Last i with t[i] <= time (0 before the start, n-1 past the end).
 export function indexAtTime(t, time) {
@@ -63,8 +67,9 @@ export function createPlaybackStore({
   function tick(ts) {
     frameId = null;
     if (!playing) return;
-    time += ((ts - last) / 1000) * speed;
-    last = ts;
+    const dt = Math.min(MAX_FRAME_MS, Math.max(0, ts - last));
+    time = clamp(time + (dt / 1000) * speed);
+    last = Math.max(last, ts);
     if (time >= tEnd()) {
       time = tEnd();
       playing = false;

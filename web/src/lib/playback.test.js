@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { indexAtTime, nextWindowTime, createPlaybackStore } from './playback.js';
+import { MAX_FRAME_MS, indexAtTime, nextWindowTime, createPlaybackStore } from './playback.js';
 
 // Deterministic clock: raf callbacks queue; frame(dtMs) advances the clock and runs them.
 function fakeClock() {
@@ -134,4 +134,22 @@ test('stepWindow, stepSeconds, seekTime and toggle', () => {
   s.toggle();
   s.toggle();
   assert.deepEqual(events, ['play', 'pause']);
+});
+
+test('a frame timestamp before play/seek never moves time backwards or below 0; gaps are clamped', () => {
+  const c = fakeClock();
+  // play() and seek() read now() after the frame began: 50 ms ahead of the next rAF timestamp.
+  const s = createPlaybackStore({ ...c, now: () => c.now() + 50 });
+  s.load(T);
+  s.setSpeed(300);
+  s.play();
+  c.frame(16); // ts 16 < last 50: negative delta
+  assert.equal(s.getTime(), 0);
+  c.frame(40); // ts 56: only the 6 ms after last count
+  assert.ok(Math.abs(s.getTime() - 1.8) < 1e-9, `time ${s.getTime()}`);
+  s.seekTime(30); // last = now() = 106 while the next frame is at 72
+  c.frame(16);
+  assert.equal(s.getTime(), 30);
+  c.frame(5000); // a 5 s gap counts as MAX_FRAME_MS: 30 + 0.25 s x 300 = 105
+  assert.ok(Math.abs(s.getTime() - (30 + (MAX_FRAME_MS / 1000) * 300)) < 1e-9, `time ${s.getTime()}`);
 });
