@@ -12,6 +12,8 @@ export default defineConfig(({ command }) => ({
     : {},
   // Lib mode does not replace this, and `process` is undefined in the Qollab iframe.
   define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+  // Dev server only: lets the stub import ../data/precomputed_run.json?raw (no effect on the build).
+  server: { fs: { allow: [fileURLToPath(new URL('..', import.meta.url))] } },
   build: {
     target: 'esnext',             // main.jsx ends with a top-level await
     outDir: '..',                 // repo root == Qollab root
@@ -19,6 +21,8 @@ export default defineConfig(({ command }) => ({
     cssCodeSplit: false,
     assetsInlineLimit: 100_000_000,
     copyPublicDir: false,
+    // License notices of every bundled dependency (the lib build strips license comments).
+    license: { fileName: 'THIRD_PARTY_LICENSES.md' },
     lib: { entry: 'src/main.jsx', formats: ['es'], fileName: () => 'main.js', cssFileName: 'main' },
     // Python modules are provided by Qollab's Pyodide runtime at load time.
     rollupOptions: { external: [/^magnav(\..+)?$/] },

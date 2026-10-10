@@ -17,6 +17,7 @@ NODE = shutil.which("node")
 def test_web_lib_node_tests():
     proc = subprocess.run(
         [NODE, "--test", "src/lib/*.test.js"],
+        check=False,
         cwd=WEB,
         capture_output=True,
         text=True,

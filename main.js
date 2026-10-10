@@ -9034,15 +9034,24 @@ var t = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}
 	}
 	n(), t.exports = c();
-})))(), u = a(), d = typeof backend < "u" ? backend : globalThis.backend ?? null;
-async function f(t, ...n) {
-	let r = e[t];
-	if (!r) throw Error(`magnav.api.${t} not found`);
-	return JSON.parse(await r.callPromising(d, ...n));
+})))(), u = a(), d = typeof backend < "u" ? backend : globalThis.backend ?? null, f = Promise.resolve();
+function p(e) {
+	let t = f.then(e, e);
+	return f = t.catch(() => {}), t;
+}
+function m(t, ...n) {
+	return p(async () => {
+		let r = e[t];
+		if (!r) throw Error(`magnav.api.${t} not found`);
+		return String(await r.callPromising(d, ...n));
+	});
+}
+async function h(e, ...t) {
+	return JSON.parse(await m(e, ...t));
 }
 //#endregion
 //#region node_modules/react/cjs/react-jsx-runtime.production.js
-var p = /* @__PURE__ */ t(((e) => {
+var g = /* @__PURE__ */ t(((e) => {
 	var t = Symbol.for("react.transitional.element");
 	function n(e, n, r) {
 		var i = null;
@@ -9057,21 +9066,21 @@ var p = /* @__PURE__ */ t(((e) => {
 		};
 	}
 	e.jsx = n, e.jsxs = n;
-})), m = (/* @__PURE__ */ t(((e, t) => {
-	t.exports = p();
-})))(), h = [
+})), _ = (/* @__PURE__ */ t(((e, t) => {
+	t.exports = g();
+})))(), v = [
 	1,
 	2,
 	32,
 	64,
 	128
-], g = [
+], y = [
 	100,
 	200,
 	500,
 	1024,
 	4096
-], _ = [
+], b = [
 	"name",
 	"class",
 	"num_qubits",
@@ -9083,16 +9092,16 @@ var p = /* @__PURE__ */ t(((e) => {
 	"sklearn",
 	"qiskit_ionq",
 	"data_file"
-], v = "Qollab's IonQ proxy accepts only single-circuit jobs, so IonQ runs use 1 circuit.", y = "IonQ allows one job per run. Press Stop, then Run, to submit another.", b = "This run has ended. Press Stop, then Run, to start a new one.", ee = 6e5, te, ne = new Promise((e) => {
-	te = e;
+], ee = "Qollab's IonQ proxy accepts only single-circuit jobs, so IonQ runs use 1 circuit.", te = "IonQ allows one job per run. Press Stop, then Run, to submit another.", ne = "This run has ended. Press Stop, then Run, to start a new one.", re = 6e5, x, ie = new Promise((e) => {
+	x = e;
 });
-function re(e) {
+function S(e) {
 	return e == null ? "none" : typeof e == "object" ? JSON.stringify(e) : String(e);
 }
-function x() {
-	let e = (0, u.useId)(), t = (0, u.useId)(), n = (0, u.useId)(), [r, i] = (0, u.useState)(null), [a, o] = (0, u.useState)(d ? "Loading backend info…" : ""), [s, c] = (0, u.useState)(1), [l, p] = (0, u.useState)(200), [ne, x] = (0, u.useState)(!1), [ie, S] = (0, u.useState)(!1), [ae, oe] = (0, u.useState)(null), [se, ce] = (0, u.useState)(!1), le = (0, u.useRef)(!1), ue = (0, u.useRef)(!1), de = (0, u.useRef)(!1);
+function ae() {
+	let e = (0, u.useId)(), t = (0, u.useId)(), n = (0, u.useId)(), [r, i] = (0, u.useState)(null), [a, o] = (0, u.useState)(d ? "Loading backend info…" : ""), [s, c] = (0, u.useState)(1), [l, f] = (0, u.useState)(200), [p, m] = (0, u.useState)(!1), [g, ie] = (0, u.useState)(!1), [ae, oe] = (0, u.useState)(null), [se, ce] = (0, u.useState)(!1), le = (0, u.useRef)(!1), ue = (0, u.useRef)(!1), de = (0, u.useRef)(!1);
 	function C(e) {
-		ce(!0), e && o(e), te();
+		ce(!0), e && o(e), x();
 	}
 	(0, u.useEffect)(() => {
 		if (!d) {
@@ -9100,19 +9109,19 @@ function x() {
 			return;
 		}
 		let e = setTimeout(() => {
-			de.current = !0, ue.current || C(`Keep-alive limit (${ee / 6e4} min) reached. ${b}`);
-		}, ee);
+			de.current = !0, ue.current || C(`Keep-alive limit (${re / 6e4} min) reached. ${ne}`);
+		}, re);
 		return () => clearTimeout(e);
 	}, []), (0, u.useEffect)(() => {
 		if (!d) return;
 		let e = !1;
 		return (async () => {
 			try {
-				let t = await f("backend_info");
+				let t = await h("backend_info");
 				if (e) return;
 				i(t), o(`Backend ready: ${t.name}. Choose circuits and shots, then submit one job.`);
 			} catch (t) {
-				e || C(`Error: ${t?.name ?? "Error"}: ${t?.message ?? t}. ${b}`);
+				e || C(`Error: ${t?.name ?? "Error"}: ${t?.message ?? t}. ${ne}`);
 			}
 		})(), () => {
 			e = !0;
@@ -9122,101 +9131,101 @@ function x() {
 	(0, u.useEffect)(() => {
 		fe && c(1);
 	}, [fe]);
-	let pe = !d || !r || ne || ie || se;
+	let pe = !d || !r || p || g || se;
 	async function me() {
 		if (pe || le.current) return;
 		le.current = !0, ue.current = !0;
 		let e = fe ? 1 : s;
-		x(!0), oe(null), fe && S(!0), o(`Submitting ${e} ${e === 1 ? "circuit" : "circuits"} × ${l} shots to ${r.name}…`);
+		m(!0), oe(null), fe && ie(!0), o(`Submitting ${e} ${e === 1 ? "circuit" : "circuits"} × ${l} shots to ${r.name}…`);
 		try {
-			let t = await f("run_bell_batch", e, l);
+			let t = await h("run_bell_batch", e, l);
 			oe(t);
 			let n = t.ok ? `Done in ${t.submit_to_result_s} s. Ordering check: ${t.ordering_ok ? "passed" : "failed"}` : `Error: ${t.error_type}: ${t.error}`;
-			fe && (n += ` ${y}`), o(n);
+			fe && (n += ` ${te}`), o(n);
 		} catch (e) {
 			let t = `Error: ${e?.name ?? "Error"}: ${e?.message ?? e}`;
-			fe && (t += ` ${y}`), o(t);
+			fe && (t += ` ${te}`), o(t);
 		} finally {
-			ue.current = !1, x(!1), fe ? te() : (le.current = !1, de.current && C(`Keep-alive limit (${ee / 6e4} min) reached. ${b}`));
+			ue.current = !1, m(!1), fe ? x() : (le.current = !1, de.current && C(`Keep-alive limit (${re / 6e4} min) reached. ${ne}`));
 		}
 	}
-	return /* @__PURE__ */ (0, m.jsxs)("main", {
+	return /* @__PURE__ */ (0, _.jsxs)("main", {
 		className: "page",
 		children: [
-			/* @__PURE__ */ (0, m.jsx)("h1", { children: "Quantum MagNav: Qollab smoke test" }),
-			/* @__PURE__ */ (0, m.jsxs)("section", {
+			/* @__PURE__ */ (0, _.jsx)("h1", { children: "Quantum MagNav: Qollab smoke test" }),
+			/* @__PURE__ */ (0, _.jsxs)("section", {
 				"aria-labelledby": "backend-heading",
 				children: [
-					/* @__PURE__ */ (0, m.jsx)("h2", {
+					/* @__PURE__ */ (0, _.jsx)("h2", {
 						id: "backend-heading",
 						children: "Backend"
 					}),
-					!d && /* @__PURE__ */ (0, m.jsx)("p", {
+					!d && /* @__PURE__ */ (0, _.jsx)("p", {
 						className: "warning",
 						children: "Backend unavailable: press Run on Qollab and choose a backend"
 					}),
-					r && /* @__PURE__ */ (0, m.jsx)("dl", {
+					r && /* @__PURE__ */ (0, _.jsx)("dl", {
 						className: "info",
-						children: _.map((e) => /* @__PURE__ */ (0, m.jsxs)("div", {
+						children: b.map((e) => /* @__PURE__ */ (0, _.jsxs)("div", {
 							className: "info-row",
-							children: [/* @__PURE__ */ (0, m.jsx)("dt", { children: e }), /* @__PURE__ */ (0, m.jsx)("dd", { children: re(r[e]) })]
+							children: [/* @__PURE__ */ (0, _.jsx)("dt", { children: e }), /* @__PURE__ */ (0, _.jsx)("dd", { children: S(r[e]) })]
 						}, e))
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, m.jsxs)("section", {
+			/* @__PURE__ */ (0, _.jsxs)("section", {
 				"aria-labelledby": "job-heading",
 				children: [
-					/* @__PURE__ */ (0, m.jsx)("h2", {
+					/* @__PURE__ */ (0, _.jsx)("h2", {
 						id: "job-heading",
 						children: "Bell job"
 					}),
-					/* @__PURE__ */ (0, m.jsxs)("div", {
+					/* @__PURE__ */ (0, _.jsxs)("div", {
 						className: "controls",
 						children: [
-							/* @__PURE__ */ (0, m.jsxs)("div", {
+							/* @__PURE__ */ (0, _.jsxs)("div", {
 								className: "field",
 								children: [
-									/* @__PURE__ */ (0, m.jsx)("label", {
+									/* @__PURE__ */ (0, _.jsx)("label", {
 										htmlFor: e,
 										children: "Circuits per job"
 									}),
-									/* @__PURE__ */ (0, m.jsx)("select", {
+									/* @__PURE__ */ (0, _.jsx)("select", {
 										id: e,
 										value: s,
 										onChange: (e) => c(Number(e.target.value)),
-										disabled: ne || ie,
+										disabled: p || g,
 										"aria-describedby": fe ? n : void 0,
-										children: h.map((e) => /* @__PURE__ */ (0, m.jsx)("option", {
+										children: v.map((e) => /* @__PURE__ */ (0, _.jsx)("option", {
 											value: e,
 											disabled: fe && e !== 1,
 											children: e
 										}, e))
 									}),
-									fe && /* @__PURE__ */ (0, m.jsx)("p", {
+									fe && /* @__PURE__ */ (0, _.jsx)("p", {
 										id: n,
 										className: "help",
-										children: v
+										children: ee
 									})
 								]
 							}),
-							/* @__PURE__ */ (0, m.jsxs)("div", {
+							/* @__PURE__ */ (0, _.jsxs)("div", {
 								className: "field",
-								children: [/* @__PURE__ */ (0, m.jsx)("label", {
+								children: [/* @__PURE__ */ (0, _.jsx)("label", {
 									htmlFor: t,
 									children: "Shots"
-								}), /* @__PURE__ */ (0, m.jsx)("select", {
+								}), /* @__PURE__ */ (0, _.jsx)("select", {
 									id: t,
 									value: l,
-									onChange: (e) => p(Number(e.target.value)),
-									disabled: ne || ie,
-									children: g.map((e) => /* @__PURE__ */ (0, m.jsx)("option", {
+									onChange: (e) => f(Number(e.target.value)),
+									disabled: p || g,
+									children: y.map((e) => /* @__PURE__ */ (0, _.jsx)("option", {
 										value: e,
 										children: e
 									}, e))
 								})]
 							}),
-							/* @__PURE__ */ (0, m.jsx)("button", {
+							/* @__PURE__ */ (0, _.jsx)("button", {
 								type: "button",
 								onClick: me,
 								disabled: pe,
@@ -9224,7 +9233,7 @@ function x() {
 							})
 						]
 					}),
-					/* @__PURE__ */ (0, m.jsx)("p", {
+					/* @__PURE__ */ (0, _.jsx)("p", {
 						role: "status",
 						"aria-live": "polite",
 						className: "status",
@@ -9232,52 +9241,52 @@ function x() {
 					})
 				]
 			}),
-			ae?.ok && /* @__PURE__ */ (0, m.jsxs)("section", {
+			ae?.ok && /* @__PURE__ */ (0, _.jsxs)("section", {
 				"aria-labelledby": "results-heading",
-				children: [/* @__PURE__ */ (0, m.jsx)("h2", {
+				children: [/* @__PURE__ */ (0, _.jsx)("h2", {
 					id: "results-heading",
 					children: "Results"
-				}), /* @__PURE__ */ (0, m.jsxs)("table", { children: [
-					/* @__PURE__ */ (0, m.jsx)("caption", { children: "Counts per circuit" }),
-					/* @__PURE__ */ (0, m.jsx)("thead", { children: /* @__PURE__ */ (0, m.jsxs)("tr", { children: [
-						/* @__PURE__ */ (0, m.jsx)("th", {
+				}), /* @__PURE__ */ (0, _.jsxs)("table", { children: [
+					/* @__PURE__ */ (0, _.jsx)("caption", { children: "Counts per circuit" }),
+					/* @__PURE__ */ (0, _.jsx)("thead", { children: /* @__PURE__ */ (0, _.jsxs)("tr", { children: [
+						/* @__PURE__ */ (0, _.jsx)("th", {
 							scope: "col",
 							children: "Circuit"
 						}),
-						/* @__PURE__ */ (0, m.jsx)("th", {
+						/* @__PURE__ */ (0, _.jsx)("th", {
 							scope: "col",
 							children: "Expected"
 						}),
-						/* @__PURE__ */ (0, m.jsx)("th", {
+						/* @__PURE__ */ (0, _.jsx)("th", {
 							scope: "col",
 							children: "Counts"
 						})
 					] }) }),
-					/* @__PURE__ */ (0, m.jsx)("tbody", { children: ae.counts.map((e, t) => /* @__PURE__ */ (0, m.jsxs)("tr", { children: [
-						/* @__PURE__ */ (0, m.jsx)("th", {
+					/* @__PURE__ */ (0, _.jsx)("tbody", { children: ae.counts.map((e, t) => /* @__PURE__ */ (0, _.jsxs)("tr", { children: [
+						/* @__PURE__ */ (0, _.jsx)("th", {
 							scope: "row",
 							children: t
 						}),
-						/* @__PURE__ */ (0, m.jsx)("td", { children: t % 2 ? "Ψ+ (01/10)" : "Φ+ (00/11)" }),
-						/* @__PURE__ */ (0, m.jsx)("td", { children: /* @__PURE__ */ (0, m.jsx)("code", { children: JSON.stringify(e) }) })
+						/* @__PURE__ */ (0, _.jsx)("td", { children: t % 2 ? "Ψ+ (01/10)" : "Φ+ (00/11)" }),
+						/* @__PURE__ */ (0, _.jsx)("td", { children: /* @__PURE__ */ (0, _.jsx)("code", { children: JSON.stringify(e) }) })
 					] }, t)) })
 				] })]
 			}),
-			ae && /* @__PURE__ */ (0, m.jsxs)("section", {
+			ae && /* @__PURE__ */ (0, _.jsxs)("section", {
 				"aria-labelledby": "raw-heading",
-				children: [/* @__PURE__ */ (0, m.jsx)("h2", {
+				children: [/* @__PURE__ */ (0, _.jsx)("h2", {
 					id: "raw-heading",
 					children: "Raw result JSON"
-				}), /* @__PURE__ */ (0, m.jsx)("pre", {
+				}), /* @__PURE__ */ (0, _.jsx)("pre", {
 					role: "region",
 					"aria-labelledby": "raw-heading",
 					tabIndex: 0,
 					children: JSON.stringify(ae, null, 2)
 				})]
 			}),
-			/* @__PURE__ */ (0, m.jsxs)("footer", { children: [/* @__PURE__ */ (0, m.jsx)("p", { children: "This effort is supported by Qollab & IonQ." }), /* @__PURE__ */ (0, m.jsx)("p", { children: "Theme: Quantum Impact · MIT License" })] })
+			/* @__PURE__ */ (0, _.jsxs)("footer", { children: [/* @__PURE__ */ (0, _.jsx)("p", { children: "This effort is supported by Qollab & IonQ." }), /* @__PURE__ */ (0, _.jsx)("p", { children: "Theme: Quantum Impact · MIT License" })] })
 		]
 	});
 }
-(0, l.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, m.jsx)(x, {})), await ne;
+(0, l.createRoot)(document.getElementById("root")).render(/* @__PURE__ */ (0, _.jsx)(ae, {})), await ie;
 //#endregion
