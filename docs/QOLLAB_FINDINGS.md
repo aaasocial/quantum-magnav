@@ -112,3 +112,67 @@ git push -u origin main
   - Pack all windows into ONE circuit, for example independent 4-6-qubit feature-map blocks on separate qubit groups of the 29-qubit simulator, read out from the marginals of one counts dict. Alternatively, run the bulk on the built-in simulator or local Aer with the forte-1 noise model, and keep the single IonQ job as the verified showcase.
   - Add scikit-learn to `requirements.txt` for Pyodide, or use numpy versions of ridge and kernel ridge, because it is not preloaded.
   - Platform qiskit-ionq is 1.0.2. Do not use features that need 1.1 or later.
+
+## Phase 3 player on Qollab (2026-10-10)
+
+The orchestrator ran this check with the builder's authorization between 10:30 and 10:35 PDT. It used Chrome (Playwright), signed in as `eehhaa`, with https://qollab.xyz/u/eehhaa/quantum-magnav open in edit mode. It follows Plan 03-04, Task 4.
+
+**Upload only. Nothing was published.** `dist/qollab-upload.zip` (27 files, 6.5 MB unpacked, every file under 2 MB) went in through Edit Code → Browse → Files… → Unpack → "Keep and add". That replaced 8 existing files and skipped `README.md`, which Qollab uses as the write-up. Visitors still see the published version `v0.1.1-smoke`. Publishing a new version needs a separate, explicit approval from the builder (CLAUDE.md gate).
+
+### Run on the built-in simulator (24q)
+
+- The full player rendered in the Preview about 10 s after Pyodide finished installing packages. That covers the h1 "Quantum MagNav: holding position without GPS" and the control bar: Flight line, Sensor, Track on map, Play, the Flight time slider "t = 0 s / 3,784 s", Speed 60×, "Run live in-page", Demo options and the Signal series checkboxes. It also covers the status strip with the "precomputed replay" badge and the hint "Press Play or Space to fly the line. GPS is jammed at t = 946 s.", plus End run, the Map, the Magnetic signal and Residual charts with the "GPS jammed" reference line, and the Navigation accuracy table.
+- aria-live on load: "Precomputed flight loaded. Line 1003.02, Mag 5. Press Play or Space to start."
+- Browser console: one message came from Qollab itself and is not fatal. Qollab runs main.js through Babel, which logged "[BABEL] Note: The code generator has deoptimised the styling of undefined as it exceeds the max of 500KB". There were no other errors or warnings.
+
+### Startup probes (verbatim from Qollab's console panel)
+
+```
+[probe] timers {"sameAsGlobal":false,"nativeGlobal":true,"returnsPromise":true,"setIntervalType":"function","setIntervalNative":true}
+[probe] main_thread {"call":"artifact_json","ms":7,"frames":1,"maxGapMs":0}
+[probe] artifact_load {"ms":9}
+[probe] frame {"innerHeight":520,"scrollHeight":1797,"dpr":2}
+```
+
+### Playback
+
+- After Play, 25 s of wall time at 60× took the readout to t = 2,157 s. The jam banner "GPS jammed at t = 946 s — magnetic-only from here" appeared.
+- aria-live readout: "2148 seconds. Position error, Tolles-Lawson (TL): 279 metres. Dead reckoning: 1605 metres." TL holds position while dead reckoning drifts.
+
+### Live run (1003.02 / Mag 5)
+
+- The badge changed to "computed in-page". Status: "Live run finished in 28.8 s. Showing results computed in your browser." aria-live: "Mode: computed in-page."
+- The console logged 107 `[probe] live_step` lines. The first three were:
+
+```
+[probe] live_step {"ms":159,"budgetMs":250,"frames":1,"maxGapMs":0,"stage":2,"fitting":"select","windowsDone":0}
+[probe] live_step {"ms":7,...,"fitting":"raw"}
+[probe] live_step {"ms":3,...,"fitting":"lowpass"}
+[probe] live_result {"ms":68,"frames":1,"maxGapMs":0}
+[probe] live_summary {"line":"1003.02","sensor":"mag_5_uc","totalS":28.77,"windows":834,"msPerWindow":31.6,"maxStage2CallMs":160,"budgetMs":250,"skipped":[],"outcome":"ok"}
+```
+
+- Nothing was skipped (`skipped: []`). All three computed denoisers fit inside the budget.
+
+### Simulated failure (fallback demo)
+
+- Demo options → "Simulate a compute failure" → Run live. The badge went back to "precomputed replay". The notice read exactly: "Live run failed: RuntimeError: Simulated failure (demo of the fallback). Showing the precomputed replay for 1003.02 / Mag 5."
+- aria-live: "Live run failed. Showing the precomputed replay. Mode: precomputed replay."
+- `[probe] live_summary {...,"totalS":0.019,"windows":0,"msPerWindow":null,...,"outcome":"RuntimeError: Simulated failure (demo of the fallback)"}`
+
+### Line and sensor switch
+
+- Choosing 1007.06 and Mag 4 changed the slider to "t = 0 s / 5,240 s" and the hint to "GPS is jammed at t = 1310 s". The map caption became "Line 1007.06 over the Renfrew anomaly map (Mag 4 (hard case))…" and the RMSE footnote became "from t = 1,370 s". aria-live: "Line 1007.06, Mag 4 (hard case). Paused at start." There were no console errors.
+
+### Interpretation
+
+1. **Python runs on the page's main thread.** Only 1 animation frame rendered during the 159 ms stage-2 call and during `artifact_json`. The page can only respond between Python calls, so the 250 ms chunked live API (one fit per stage-2 call, budgeted stage-3 steps) is what keeps the UI responsive. Keep every Python call short. Never make one long `run_line` call.
+2. **Qollab's injected `setTimeout` is not the native one and returns a promise** (`sameAsGlobal: false`, `returnsPromise: true`). This confirms the rule: schedule with requestAnimationFrame, MessageChannel and `performance.now`, and never rely on injected `setTimeout` taking callbacks. The native `globalThis.setInterval` is still available.
+3. **The preview iframe does not grow with its content.** It is 520 px tall, but the content is 1797 px tall, so the page scrolls inside the preview. Unless the judge scrolls or presses the Preview "Fullscreen" button, they see only the header and the control bar. **Phase 5 polish item:** a compact layout with the map near the top (map-first ordering, smaller control bar) so the drone and map show in the first 520 px. The README "How to run" text should tell judges to use Fullscreen or scroll.
+4. **Live speed:** 31.6 ms per window in Pyodide against 11.5 ms in CPython (03-01 measurement; RESEARCH had 19.8 ms). That makes Pyodide about 2.7× slower, inside the research's 1.5-3× assumption. 1003.02 took 28.8 s in total. 1007.06 projects to about 3 denoisers × 383 windows × 31.6 ms ≈ 36 s, roughly 40 s with the fits. Both lines fit well inside the 90 s deadline, and the 80 s skip rule should not trigger on either.
+
+### Not done on Qollab
+
+- The full keyboard tab-order walkthrough and the reduced-motion and achromatopsia emulation. The Task 1-3 executor checked both in headless Chrome on `vite dev`, but they were not repeated in the Qollab preview.
+- A live run on 1007.06. Its time is projected in item 4 above.
+- IonQ Forte 1 (remote simulator). It was not used. Live mode never submits a job (D-16).
