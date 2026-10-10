@@ -14,8 +14,8 @@ Run from the repository root:
     uv run --with h5py python -I scripts/preprocess_sgl.py [--raw data_raw] [--out data]
 
 Conventions (see .planning/phases/02-*/02-RESEARCH.md):
-- exact float equality on the line id (np.isclose merges neighbouring lines);
-- 10 Hz -> 2 Hz by a block mean of 5 (scipy.signal.decimate zero-pads 53,000 nT edges);
+- exact float equality on the line id (tolerance matching merges neighbouring lines);
+- 10 Hz -> 2 Hz by a block mean of 5 (the scipy FIR decimator zero-pads 53,000 nT edges);
   ins_yaw by a circular mean;
 - igrf = mag_1_dc - mag_1_igrf (there is no igrf dataset in the files);
 - maps are written by Julia, so h5py sees map/mask transposed: rows = lat after .T;
@@ -89,7 +89,7 @@ def save_npz(path: Path, arrays: dict) -> None:
 
 def extract_line(src: Path, line_id: float, expected: int) -> tuple[dict, dict]:
     with h5py.File(src, "r") as f:
-        mask = f["line"][:] == line_id  # exact equality, never np.isclose
+        mask = f["line"][:] == line_id  # exact equality, never a tolerance match
         idx = np.flatnonzero(mask)
         assert len(idx) == expected, (src.name, line_id, len(idx), expected)
         i0, i1 = int(idx[0]), int(idx[-1]) + 1
