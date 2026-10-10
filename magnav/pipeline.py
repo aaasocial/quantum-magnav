@@ -144,6 +144,8 @@ def run_pipeline(
         dr = simulate_dr(sens, jam_idx, fix_xy, seed=line_seeds[line_id], **DR_PARAMS)
         bias_signs[line_id] = dr.bias_signs
         start = jam_idx + window  # D-07: magnetic-only segment from the first full window
+        if start >= n:
+            raise ValueError(f"line {line_id}: {n} samples is too short (jam {jam_idx} + window {window})")
 
         dr_x = np.concatenate([tx[:jam_idx], dr.x])
         dr_y = np.concatenate([ty[:jam_idx], dr.y])

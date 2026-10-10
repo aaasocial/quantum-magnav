@@ -71,3 +71,20 @@ def test_format_metrics_table_handles_none():
              "signal_err_std_nT": None, "accepted": None, "windows": None}]  # fmt: skip
     text = format_metrics_table(rows)
     assert "dead_reckoning" in text and "1000" in text and " -" in text
+
+
+def test_metrics_reject_empty_segment():
+    """IN-04: a start at or past the end raises instead of IndexError / NaN."""
+    z = np.zeros(10)
+    with pytest.raises(ValueError, match="too short"):
+        position_metrics(z, z, z, z, 10)
+    with pytest.raises(ValueError, match="too short"):
+        signal_metrics(z, z, 12)
+    assert position_metrics(z, z, z, z, 9)["final_err_m"] == 0.0
+
+
+def test_pipeline_rejects_too_short_line():
+    from magnav.pipeline import run_pipeline
+
+    with pytest.raises(ValueError, match="too short"):
+        run_pipeline(sensors=("mag_5_uc",), lines=("1003.02",), truncate=150)
