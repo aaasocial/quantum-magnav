@@ -83,8 +83,8 @@ None yet.
 - Max circuits/gates per IonQ Forte 1 job undocumented (probe 32/64/128 in Phase 1)
 - Hardware credits for the QPU run unconfirmed (ask in #hackathon-help on Day 1; proxy fallback is the labeled `forte-1` noise model)
 - Windowed-correlation (TERCOM-style) navigation is now the default; the particle filter is an optional stretch, and if built its Pyodide performance is untested (keep particle counts moderate; precompute is the default)
-- Raw data downloads incomplete: Flt1003, Flt1007 and the MagNav.jl `ottawa_area_maps` (Eastern_395.h5, Renfrew_395.h5) are not yet in `data_raw/`; Phase 2 preprocessing needs all of them (verify Flt1006_train.h5 finished downloading)
-- Map coverage unverified: confirm in Phase 2 preprocessing that lines 1003.02 and 1007.06 lie inside the valid (non-k-NN-filled) area of Eastern_395 / Renfrew_395
+- Raw data verified 2026-10-10: Flt1003/1006/1007_train.h5 (123/83/88 MB, sizes match Zenodo) and ottawa_area_maps Eastern_395/Renfrew_395/Perth_800/HighAlt_5181.h5 open with h5py in `data_raw/`; lines 1003.02 (63 min), 1006.08 (14 min), 1007.06 (87 min) present. Maps are ~30 m grids (Eastern 6238x4881, Renfrew 3331x3841), so Phase 2 must crop to the line bounding box and downsample to stay under 2 MB
+- Map coverage: line bounding boxes fall inside the Eastern_395 (1003.02, 1006.08) and Renfrew_395 (1007.06) extents; still confirm in Phase 2 preprocessing that they lie in the valid (non-k-NN-filled) mask area (Eastern mask 46% valid, Renfrew 56%)
 
 ### Quick Tasks Completed
 
