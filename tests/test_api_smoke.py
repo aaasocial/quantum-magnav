@@ -4,7 +4,7 @@ from pathlib import Path
 
 from qiskit.providers.basic_provider import BasicSimulator
 
-import magnav.api as api
+from magnav import api
 
 ROOT = Path(__file__).resolve().parent.parent
 
