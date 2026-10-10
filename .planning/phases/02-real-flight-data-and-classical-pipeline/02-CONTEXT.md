@@ -44,6 +44,9 @@ Platform constraints inherited from Phase 1 (see docs/QOLLAB_FINDINGS.md): Qolla
 - D-17: The pipeline runs BOTH cabin sensors, Mag 4 (`mag_4_uc`) and Mag 5 (`mag_5_uc`), through every denoiser and the navigator; the artifact and metrics table carry both; the default demo sensor is Mag 5 (reliable hold) and Mag 4 is the "hard case" where denoiser differences are compared. D-02 is superseded accordingly (Mag 4 is no longer the single primary).
 - D-18: The navigator (a) skips fixes whose normalized correlation is below 0.85 and coasts on the INS estimate instead, and (b) centres the 3 km search box on the last accepted fix plus INS movement since then, not on raw dead reckoning. D-14/D-15 are amended accordingly.
 
+### Post-execution amendment (D-19, accepted by the builder 2026-10-10 after 02-02 results)
+- D-19: The Tolles-Lawson fluxgate is selected PER SENSOR among flux_a, flux_b, flux_c, flux_d using blocked cross-validation on the calibration line 1006.08 ONLY (no held-out data is consulted); lambda is selected the same way. The chosen fluxgate and CV score are recorded in the artifact provenance and the README. Held-out results are reported as they come out; no further tuning. Rationale: 02-02 found flux_a vs flux_d changes which sensor/line combinations hold, and the only defensible selection is one made on calibration data.
+
 ### Claude's Discretion
 Everything not listed above: module layout inside `magnav/` (e.g. `magnav.data`, `magnav.classical`, `magnav.nav`, `magnav.metrics`, `magnav.artifact`), exact ridge/KRR hyperparameter search, figure styling in `main.py`, test structure, and whether KRR is scikit-learn (with `scikit-learn` added to requirements.txt) or a numpy implementation.
 
