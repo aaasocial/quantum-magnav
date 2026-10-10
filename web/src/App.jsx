@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ControlBar from './components/ControlBar.jsx';
 import StatusStrip from './components/StatusStrip.jsx';
 import MapView from './components/MapView.jsx';
+import SignalPanel from './components/SignalPanel.jsx';
+import MetricsTable from './components/MetricsTable.jsx';
+import TextAlternatives from './components/TextAlternatives.jsx';
+import JamBanner from './components/JamBanner.jsx';
 import Announcer, { announce } from './components/Announcer.jsx';
 import { useArtifact } from './hooks/useArtifact.js';
 import { useReducedMotion } from './hooks/useReducedMotion.js';
@@ -274,14 +278,22 @@ export default function App() {
         runEnded={runEnded}
       />
 
-      <div className="jam-slot" />
+      <div className="jam-slot">
+        <JamBanner view={view} />
+      </div>
 
       <div className="main-grid">
         <MapView view={view} mapTrack={mapTrack} sensorLabel={sensorLabel} />
-        <section className="signal-col" />
+        <section className="signal-col">
+          <SignalPanel view={view} visible={visible} />
+        </section>
       </div>
 
-      <div className="results-slot" />
+      <section className="panel results" aria-labelledby="results-title">
+        <h2 id="results-title">Navigation accuracy</h2>
+        <MetricsTable view={view} sensor={activeSensor} mapTrack={mapTrack} />
+        <TextAlternatives view={view} visible={visible} mapTrack={mapTrack} sensor={activeSensor} />
+      </section>
 
       <Announcer />
 

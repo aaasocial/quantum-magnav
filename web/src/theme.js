@@ -28,3 +28,8 @@ export const CASING = '#000000';
 export const INVALID_BASE = '#24282F';
 export const INVALID_STRIPE = '#3A3F47';
 export const TEXT_COLOR = '#E8EAED';
+
+// Chart chrome (mirrors app.css --color-border, --color-text-muted, --color-accent).
+export const GRID = '#3A404C';
+export const MUTED = '#A9B0BB';
+export const ACCENT = '#A5B4FC';
