@@ -1,213 +1,226 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { callPy, qBackend } from './bridge.js';
+// Player shell: artifact load, selection state, layout slots, global keyboard map and the
+// Qollab keep-alive. Per-frame state lives in the playback store, never in App state.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ControlBar from './components/ControlBar.jsx';
+import StatusStrip from './components/StatusStrip.jsx';
+import MapView from './components/MapView.jsx';
+import { useArtifact } from './hooks/useArtifact.js';
+import { useReducedMotion } from './hooks/useReducedMotion.js';
+import { playback } from './hooks/usePlayback.js';
+import { lineView, validateLine } from './lib/artifact.js';
+import { logFrameProbe, logTimerProbe } from './probe.js';
+import { SENSOR_LABELS } from './theme.js';
 
-const CIRCUIT_OPTIONS = [1, 2, 32, 64, 128];
-const SHOT_OPTIONS = [100, 200, 500, 1024, 4096];
-const INFO_FIELDS = [
-  'name', 'class', 'num_qubits', 'noise_model', 'python', 'qiskit',
-  'numpy', 'scipy', 'sklearn', 'qiskit_ionq', 'data_file',
-];
-const IONQ_CIRCUITS_HELP = "Qollab's IonQ proxy accepts only single-circuit jobs, so IonQ runs use 1 circuit.";
-const IONQ_LOCK_MESSAGE = 'IonQ allows one job per run. Press Stop, then Run, to submit another.';
+const DEFAULT_LINE = '1003.02';
+const DEFAULT_TRACK = 'tl';
+const DEFAULT_VISIBLE = ['raw', 'tl'];
+const DEFAULT_SPEED = 60;
+const IDLE_LIMIT_MS = 30 * 60 * 1000; // keep-alive bound: 30 min with no input
+const IDLE_CHECK_MS = 30 * 1000;
 const RUN_ENDED_MESSAGE = 'This run has ended. Press Stop, then Run, to start a new one.';
-const KEEPALIVE_IDLE_MS = 10 * 60 * 1000; // bound on how long an idle run is kept alive
+const IDLE_MESSAGE = `Keep-alive limit (30 min) reached. ${RUN_ENDED_MESSAGE}`;
 
-// main.jsx awaits runDone to keep the Qollab run alive. It resolves on every terminal state:
-// the IonQ job finished, no backend, backend_info failed, or the idle bound was reached
-// with no job in flight. Resolving twice is harmless.
+// main.jsx awaits runDone to keep the Qollab run alive. It resolves only on End run or the
+// idle bound; never because no backend is selected (the replay needs none). Resolving twice is harmless.
 let resolveRunDone;
 export const runDone = new Promise((resolve) => { resolveRunDone = resolve; });
 
-function show(value) {
-  if (value === null || value === undefined) return 'none';
-  return typeof value === 'object' ? JSON.stringify(value) : String(value);
-}
+// Set by Plan 04's live run; the idle check never ends the run while it is true.
+export const liveRunFlag = { inFlight: false };
+
+const SKIP_TARGETS = 'input, select, textarea, button, summary, [contenteditable]';
 
 export default function App() {
-  const circuitsId = useId();
-  const shotsId = useId();
-  const circuitsHelpId = useId();
-  const [info, setInfo] = useState(null);
-  const [status, setStatus] = useState(qBackend ? 'Loading backend info…' : '');
-  const [nCircuits, setNCircuits] = useState(1); // 1 is the only value IonQ on Qollab accepts
-  const [shots, setShots] = useState(200);
-  const [busy, setBusy] = useState(false);
-  const [ionqLocked, setIonqLocked] = useState(false);
-  const [result, setResult] = useState(null);
+  const { status, artifact, error } = useArtifact();
+  const reduced = useReducedMotion();
+  const [line, setLine] = useState(DEFAULT_LINE);
+  const [sensor, setSensor] = useState(null);
+  const [mapTrack, setMapTrack] = useState(DEFAULT_TRACK);
+  const [visible, setVisible] = useState(() => new Set(DEFAULT_VISIBLE));
+  const [speed, setSpeed] = useState(DEFAULT_SPEED);
+  const [mode] = useState('precomputed');
   const [runEnded, setRunEnded] = useState(false);
-  const submitted = useRef(false); // synchronous guard against double clicks
-  const busyRef = useRef(false); // synchronous "job in flight" flag
-  const idleExpired = useRef(false);
+  const [statusMessage, setStatusMessage] = useState(null);
+  const endedRef = useRef(false);
 
-  function endRun(message) {
+  const activeSensor = sensor ?? artifact?.default_sensor ?? null;
+
+  const { view, viewError } = useMemo(() => {
+    if (!artifact || !activeSensor) return { view: null, viewError: null };
+    const entry = artifact.lines.find((l) => String(l.line) === line) ?? artifact.lines[0];
+    const errs = validateLine(entry, activeSensor);
+    if (errs.length) return { view: null, viewError: errs.slice(0, 3).join('; ') };
+    return { view: lineView(entry, activeSensor), viewError: null };
+  }, [artifact, line, activeSensor]);
+
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // A new line/sensor view: load its time axis (pauses and resets to index 0).
+  useEffect(() => {
+    if (view) playback.load(view.t);
+  }, [view]);
+
+  useEffect(() => { playback.setSpeed(speed); }, [speed]);
+  useEffect(() => { playback.setReduced(reduced); }, [reduced]);
+
+  const endRun = useCallback((message) => {
+    if (endedRef.current) return;
+    endedRef.current = true;
     setRunEnded(true);
-    if (message) setStatus(message);
+    setStatusMessage(message);
     resolveRunDone();
-  }
-
-  useEffect(() => {
-    if (!qBackend) {
-      endRun(); // nothing can ever be submitted; do not hold the run open
-      return;
-    }
-    const timer = setTimeout(() => {
-      idleExpired.current = true;
-      // Never end the run under an in-flight job; submit()'s finally ends it instead.
-      if (!busyRef.current) {
-        endRun(`Keep-alive limit (${KEEPALIVE_IDLE_MS / 60000} min) reached. ${RUN_ENDED_MESSAGE}`);
-      }
-    }, KEEPALIVE_IDLE_MS);
-    return () => clearTimeout(timer);
   }, []);
 
+  // Probes once on mount (Pitfalls 5 and 7).
   useEffect(() => {
-    if (!qBackend) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await callPy('backend_info'); // no job submitted
-        if (cancelled) return;
-        setInfo(data);
-        setStatus(`Backend ready: ${data.name}. Choose circuits and shots, then submit one job.`);
-      } catch (e) {
-        if (!cancelled) endRun(`Error: ${e?.name ?? 'Error'}: ${e?.message ?? e}. ${RUN_ENDED_MESSAGE}`);
-      }
-    })();
-    return () => { cancelled = true; };
+    logTimerProbe();
+    logFrameProbe();
   }, []);
 
-  const isIonq = info?.is_ionq === true; // detected in Python (provider module or name)
-
+  // Global keyboard map (UI-SPEC Keyboard table, D-11). Form controls keep their native keys;
+  // the slider handles its own arrows and PageUp/PageDown.
   useEffect(() => {
-    if (isIonq) setNCircuits(1);
-  }, [isIonq]);
-
-  const disabled = !qBackend || !info || busy || ionqLocked || runEnded;
-
-  async function submit() {
-    // submitted.current blocks a second click before React re-renders, on every backend.
-    if (disabled || submitted.current) return;
-    submitted.current = true;
-    busyRef.current = true;
-    const n = isIonq ? 1 : nCircuits; // never send a multi-circuit job to IonQ
-    setBusy(true);
-    setResult(null);
-    if (isIonq) setIonqLocked(true); // lock before the call: one job per IonQ run
-    setStatus(`Submitting ${n} ${n === 1 ? 'circuit' : 'circuits'} × ${shots} shots to ${info.name}…`);
-    try {
-      const res = await callPy('run_bell_batch', n, shots);
-      setResult(res);
-      let message = res.ok
-        ? `Done in ${res.submit_to_result_s} s. Ordering check: ${res.ordering_ok ? 'passed' : 'failed'}`
-        : `Error: ${res.error_type}: ${res.error}`;
-      if (isIonq) message += ` ${IONQ_LOCK_MESSAGE}`;
-      setStatus(message);
-    } catch (e) {
-      let message = `Error: ${e?.name ?? 'Error'}: ${e?.message ?? e}`;
-      if (isIonq) message += ` ${IONQ_LOCK_MESSAGE}`;
-      setStatus(message);
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-      if (isIonq) {
-        resolveRunDone(); // IonQ: one job per run, so the run is over
-      } else {
-        submitted.current = false; // simulators allow further jobs
-        if (idleExpired.current) {
-          endRun(`Keep-alive limit (${KEEPALIVE_IDLE_MS / 60000} min) reached. ${RUN_ENDED_MESSAGE}`);
-        }
+    function onKeyDown(e) {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+      const el = e.target;
+      if (el instanceof Element && el.closest(SKIP_TARGETS)) return;
+      const v = viewRef.current;
+      if (!v) return;
+      switch (e.key) {
+        case ' ':
+        case 'Spacebar':
+          e.preventDefault();
+          playback.toggle();
+          break;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          e.preventDefault();
+          playback.stepWindow(e.key === 'ArrowRight' ? 1 : -1);
+          break;
+        case 'Home':
+          e.preventDefault();
+          playback.seekIndex(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          playback.seekIndex(v.n - 1);
+          break;
+        case 'j':
+        case 'J':
+          e.preventDefault();
+          playback.seekTime(v.jamT - 5);
+          break;
+        default:
+          break;
       }
     }
-  }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Keep-alive idle bound: performance.now comparisons, checked on activity and every 30 s.
+  useEffect(() => {
+    let lastActivity = performance.now();
+    const busy = () => playback.isPlaying() || liveRunFlag.inFlight;
+    const check = () => {
+      if (endedRef.current) return;
+      const now = performance.now();
+      if (busy()) {
+        lastActivity = now; // playing or computing counts as activity
+        return;
+      }
+      if (now - lastActivity >= IDLE_LIMIT_MS) endRun(IDLE_MESSAGE);
+    };
+    const onActivity = () => {
+      check();
+      lastActivity = performance.now();
+    };
+    document.addEventListener('pointerdown', onActivity, true);
+    document.addEventListener('keydown', onActivity, true);
+    const offEnd = playback.on('end', () => { lastActivity = performance.now(); });
+    const handle = globalThis.setInterval(check, IDLE_CHECK_MS);
+    return () => {
+      document.removeEventListener('pointerdown', onActivity, true);
+      document.removeEventListener('keydown', onActivity, true);
+      offEnd();
+      globalThis.clearInterval(handle);
+    };
+  }, [endRun]);
+
+  const onLineChange = useCallback((id) => {
+    playback.pause();
+    playback.seekIndex(0);
+    setLine(id);
+  }, []);
+  const onSensorChange = useCallback((s) => {
+    playback.pause();
+    playback.seekIndex(0);
+    setSensor(s);
+  }, []);
+  const onToggleSeries = useCallback((key, on) => {
+    setVisible((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const loadError = status === 'error' ? error : viewError;
+  const danger = loadError
+    ? `Could not load the precomputed flight (${loadError}). Press Stop, then Run, to reload the project.`
+    : null;
+  const controlsDisabled = status !== 'ready' || !view;
+  const lines = artifact ? artifact.lines.map((l) => String(l.line)) : [DEFAULT_LINE];
+  const sensors = artifact ? artifact.sensors : Object.keys(SENSOR_LABELS);
+  const sensorLabel = activeSensor ? (SENSOR_LABELS[activeSensor] ?? activeSensor) : '';
 
   return (
     <main className="page">
-      <h1>Quantum MagNav: Qollab smoke test</h1>
+      <header>
+        <h1>Quantum MagNav: holding position without GPS</h1>
+        <p className="intro">
+          A real survey flight over the Ottawa magnetic anomaly map. After GPS is jammed, position comes only
+          from matching the cleaned magnetometer signal against the map.
+        </p>
+      </header>
 
-      <section aria-labelledby="backend-heading">
-        <h2 id="backend-heading">Backend</h2>
-        {!qBackend && (
-          <p className="warning">Backend unavailable: press Run on Qollab and choose a backend</p>
-        )}
-        {info && (
-          <dl className="info">
-            {INFO_FIELDS.map((key) => (
-              <div key={key} className="info-row">
-                <dt>{key}</dt>
-                <dd>{show(info[key])}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </section>
+      <ControlBar
+        lines={lines}
+        sensors={sensors}
+        line={line}
+        sensor={activeSensor ?? 'mag_5_uc'}
+        mapTrack={mapTrack}
+        visible={visible}
+        speed={speed}
+        view={view}
+        disabled={controlsDisabled}
+        onLineChange={onLineChange}
+        onSensorChange={onSensorChange}
+        onMapTrackChange={setMapTrack}
+        onToggleSeries={onToggleSeries}
+        onSpeedChange={setSpeed}
+      />
 
-      <section aria-labelledby="job-heading">
-        <h2 id="job-heading">Bell job</h2>
-        <div className="controls">
-          <div className="field">
-            <label htmlFor={circuitsId}>Circuits per job</label>
-            <select
-              id={circuitsId}
-              value={nCircuits}
-              onChange={(e) => setNCircuits(Number(e.target.value))}
-              disabled={busy || ionqLocked}
-              aria-describedby={isIonq ? circuitsHelpId : undefined}
-            >
-              {CIRCUIT_OPTIONS.map((n) => (
-                <option key={n} value={n} disabled={isIonq && n !== 1}>{n}</option>
-              ))}
-            </select>
-            {isIonq && <p id={circuitsHelpId} className="help">{IONQ_CIRCUITS_HELP}</p>}
-          </div>
-          <div className="field">
-            <label htmlFor={shotsId}>Shots</label>
-            <select
-              id={shotsId}
-              value={shots}
-              onChange={(e) => setShots(Number(e.target.value))}
-              disabled={busy || ionqLocked}
-            >
-              {SHOT_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <button type="button" onClick={submit} disabled={disabled}>
-            Submit one job
-          </button>
-        </div>
-        <p role="status" aria-live="polite" className="status">{status}</p>
-      </section>
+      <StatusStrip
+        mode={mode}
+        message={statusMessage}
+        jamT={view ? view.jamT : null}
+        provenance={artifact?.provenance ?? null}
+        danger={danger}
+        onEndRun={() => endRun(RUN_ENDED_MESSAGE)}
+        runEnded={runEnded}
+      />
 
-      {result?.ok && (
-        <section aria-labelledby="results-heading">
-          <h2 id="results-heading">Results</h2>
-          <table>
-            <caption>Counts per circuit</caption>
-            <thead>
-              <tr>
-                <th scope="col">Circuit</th>
-                <th scope="col">Expected</th>
-                <th scope="col">Counts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.counts.map((counts, i) => (
-                <tr key={i}>
-                  <th scope="row">{i}</th>
-                  <td>{i % 2 ? 'Ψ+ (01/10)' : 'Φ+ (00/11)'}</td>
-                  <td><code>{JSON.stringify(counts)}</code></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      )}
+      <div className="jam-slot" />
 
-      {result && (
-        <section aria-labelledby="raw-heading">
-          <h2 id="raw-heading">Raw result JSON</h2>
-          <pre role="region" aria-labelledby="raw-heading" tabIndex={0}>{JSON.stringify(result, null, 2)}</pre>
-        </section>
-      )}
+      <div className="main-grid">
+        <MapView view={view} mapTrack={mapTrack} sensorLabel={sensorLabel} />
+        <section className="signal-col" />
+      </div>
+
+      <div className="results-slot" />
 
       <footer>
         <p>This effort is supported by Qollab &amp; IonQ.</p>
