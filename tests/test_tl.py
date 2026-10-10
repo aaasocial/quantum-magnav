@@ -210,17 +210,38 @@ def test_pipeline_passes_only_calibration_line_to_selector():
 
 
 def test_selector_runtime_sees_only_calibration_line(monkeypatch):
+    """Every runtime select_tl_config call sees only 1006.08, including the TL+currents
+    path, where TLDenoiser.fit resolves the selector through magnav.classical (WR-06)."""
+    import magnav.classical as cl
     import magnav.pipeline as pl
 
-    seen = []
-    real = pl.select_tl_config
+    seen = {"pipeline": [], "classical": []}
+    real = cl.select_tl_config
 
-    def spy(cal, cal_target, mag_key, *a, **k):
-        seen.append(cal.line)
-        return real(cal, cal_target, mag_key, *a, **k)
+    def make_spy(where):
+        def spy(cal, cal_target, mag_key, *a, **k):
+            seen[where].append(cal.line)
+            return real(cal, cal_target, mag_key, *a, **k)
 
-    monkeypatch.setattr(pl, "select_tl_config", spy)
+        return spy
+
+    monkeypatch.setattr(pl, "select_tl_config", make_spy("pipeline"))
+    monkeypatch.setattr(cl, "select_tl_config", make_spy("classical"))
     res = pl.run_pipeline(sensors=("mag_5_uc",), lines=("1003.02",), truncate=600)
-    assert seen == ["1006.08"]
+    assert seen["pipeline"] == ["1006.08"]
+    assert seen["classical"], "TL+currents selection path did not go through the spy"
+    assert set(seen["pipeline"] + seen["classical"]) == {"1006.08"}
     assert res["config"]["tl"]["mag_5_uc"]["fluxgate"] in ("flux_a", "flux_b", "flux_c", "flux_d")
     assert res["config"]["krr"]["mag_5_uc"]["fluxgate"] == res["config"]["tl"]["mag_5_uc"]["fluxgate"]
+
+
+def test_tl_currents_fit_calls_selector_via_classical_module(monkeypatch, lines):
+    """The spy target above is the attribute TLDenoiser.fit actually resolves."""
+    import magnav.classical as cl
+
+    calls = []
+    real = cl.select_tl_config
+    monkeypatch.setattr(cl, "select_tl_config", lambda cal, *a, **k: calls.append(cal.line) or real(cal, *a, **k))
+    (cal_s, cal_t), _ = lines
+    TLDenoiser("mag_5_uc", n_currents=4).fit(cal_s, cal_t.mag_1_c)
+    assert calls == ["1006.08"]
