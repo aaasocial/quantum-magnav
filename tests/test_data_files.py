@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -100,3 +101,20 @@ def test_provenance_sha():
         assert entry["decimation"]["method"] == "block_mean"
         assert entry["decimation"]["yaw"] == "circular_mean"
         assert "mag_4_uc" in entry["channels"] and "igrf" in entry["channels"]
+
+
+def _package_data_files() -> list[str]:
+    text = (ROOT / "scripts" / "package_qollab.sh").read_text(encoding="utf-8")
+    m = re.search(r"^DATA_FILES=\(([^)]*)\)", text, re.MULTILINE)
+    assert m, "DATA_FILES=(...) not found in package_qollab.sh"
+    return m.group(1).split()
+
+
+def test_literal_paths():
+    """Qollab preloads a data file only if its path is a literal string in the Python code."""
+    sources = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "magnav").glob("*.py"))
+    entries = _package_data_files()
+    assert "data/provenance.json" in entries
+    for entry in entries:
+        assert f'"{entry}"' in sources, f"{entry} is not a quoted literal in magnav/*.py"
+        assert (ROOT / entry).is_file(), entry
