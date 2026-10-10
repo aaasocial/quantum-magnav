@@ -10,7 +10,9 @@ import dataclasses
 import numpy as np
 
 from magnav.classical import (
+    KRR_CV_BLOCKS,
     KRR_FEATURES,
+    KRR_TARGET,
     TL_BAND_HZ,
     TL_TERMS,
     build_denoisers,
@@ -85,7 +87,9 @@ def run_pipeline(
             "n_train": krr.n_train,
             "features": KRR_FEATURES,
             "fluxgate": selection[mag_key]["fluxgate"],
-            "target": "bandpassed TL residual on " + CAL_LINE,
+            "target": KRR_TARGET + " " + CAL_LINE,
+            "selection": f"{KRR_CV_BLOCKS}-block CV on {CAL_LINE} only",
+            "cv_rmse_nT": krr.cv_rmse,
         }
         quantum_config[mag_key] = fitted[mag_key]["quantum"].model.provenance
         tl, tlc = fitted[mag_key]["tl"], fitted[mag_key]["tl_currents"]

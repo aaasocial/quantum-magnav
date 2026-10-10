@@ -263,8 +263,10 @@ class TLDenoiser:
 KRR_CURRENTS = ("cur_outpwr", "cur_acpwr", "cur_heat", "cur_ac_hi")
 KRR_FEATURES = 22
 KRR_GAMMA_FACTORS = (0.25, 1.0, 4.0)
-KRR_LAMBDA_GRID = (1e-2, 1e-1, 1.0, 10.0)
+KRR_LAMBDA_GRID = (1e-2, 1e-1, 1.0, 10.0, 100.0)  # 100 lets the CV shrink toward zero correction
+KRR_CV_BLOCKS = 5
 KRR_CHUNK = 1000
+KRR_TARGET = "full-band TL residual (TL output minus mag_1_c) on the calibration line"
 
 
 def kernel_features(sensors: Sensors, fluxgate: str = FLUXGATE, current_names=KRR_CURRENTS) -> np.ndarray:
@@ -301,11 +303,26 @@ def krr_predict(Zt: np.ndarray, Z: np.ndarray, alpha: np.ndarray, gamma: float, 
     return np.concatenate([rbf(Zt[i : i + chunk], Z, gamma) @ alpha for i in range(0, len(Zt), chunk)])
 
 
+def _blocked_cv_rmse(Z: np.ndarray, y: np.ndarray, gamma: float, lam: float, n_blocks: int) -> float:
+    """Out-of-block RMSE of KRR over n_blocks contiguous time blocks of ONE line."""
+    edges = np.linspace(0, len(y), n_blocks + 1).astype(int)
+    sq, count = 0.0, 0
+    for k in range(n_blocks):
+        test = np.zeros(len(y), dtype=bool)
+        test[edges[k] : edges[k + 1]] = True
+        a = krr_fit(Z[~test], y[~test], gamma, lam)
+        err = y[test] - krr_predict(Z[test], Z[~test], a, gamma)
+        sq += float(np.sum(err * err))
+        count += int(test.sum())
+    return float(np.sqrt(sq / count))
+
+
 class KRRResidual:
     """RBF kernel ridge residual model: fit(features, residual), predict(features) in nT.
 
-    gamma (median heuristic x {0.25, 1, 4}) and lambda are chosen by a blocked 70/30 split
-    of the training (calibration) rows only, then refitted on all of them.
+    Features are standardised with calibration-row mean/std. gamma (median heuristic x
+    {0.25, 1, 4}) and lambda are chosen by KRR_CV_BLOCKS-fold blocked CV (contiguous time
+    blocks) on the training (calibration) rows only, then refitted on all of them.
     """
 
     name = "krr"
@@ -319,6 +336,7 @@ class KRRResidual:
         self.sd = None
         self._Z = None
         self._alpha = None
+        self.cv_rmse = None
 
     def _standardise(self, features) -> np.ndarray:
         return (np.asarray(features, dtype=np.float64) - self.mu) / self.sd
@@ -334,16 +352,15 @@ class KRRResidual:
         self.n_train = len(Z)
         med = float(np.median(_sqdist(Z, Z)[np.triu_indices(len(Z), k=1)]))  # median heuristic
         g0 = 1.0 / med if med > _EPS else 1.0
-        k = int(0.7 * len(Z))
         best, best_err = None, np.inf
         for gf in KRR_GAMMA_FACTORS:
             for lam in KRR_LAMBDA_GRID:
                 g = g0 * gf
-                a = krr_fit(Z[:k], y[:k], g, lam)
-                err = float(np.std(y[k:] - krr_predict(Z[k:], Z[:k], a, g)))
+                err = _blocked_cv_rmse(Z, y, g, float(lam), KRR_CV_BLOCKS)
                 if err < best_err:
                     best, best_err = (g, float(lam)), err
         self.gamma, self.lam = best
+        self.cv_rmse = best_err
         self._Z = Z
         self._alpha = krr_fit(Z, y, self.gamma, self.lam)
         return self
@@ -355,8 +372,11 @@ class KRRResidual:
 class ResidualCorrected:
     """Denoiser = base denoiser minus a residual model on kernel_features.
 
-    The residual model (KRRResidual or QuantumDenoiser) is trained on the 0.1-0.9 Hz
-    bandpassed calibration residual of the base denoiser.
+    The residual model (KRRResidual or QuantumDenoiser) is trained on the FULL-BAND
+    calibration residual of the base denoiser (KRR_TARGET), and its prediction is
+    subtracted at full band, so the band it is trained on is the band it is applied in.
+    TL is fitted in 0.1-0.9 Hz; the residual left after TL is mostly below 0.1 Hz, which
+    is exactly what this second stage gets to model.
     """
 
     def __init__(self, base, model, name: str):
@@ -367,7 +387,7 @@ class ResidualCorrected:
     def fit(self, cal: Sensors, target: np.ndarray):
         self.base.fit(cal, target)
         r = self.base.predict(cal) - np.asarray(target, dtype=np.float64)
-        self.model.fit(kernel_features(cal, self.base.fluxgate), bpf(r, cal.fs))
+        self.model.fit(kernel_features(cal, self.base.fluxgate), r - r.mean())
         return self
 
     def predict(self, sensors: Sensors) -> np.ndarray:
