@@ -31,8 +31,11 @@ REQUIRED_LINE = (
 
 
 def downsample_idx(n: int, jam_idx: int, max_points: int = MAX_POINTS) -> np.ndarray:
-    """Shared display index: a uniform stride plus the jam sample and the last sample."""
-    step = max(1, math.ceil(n / max_points))
+    """Shared display index: a uniform stride plus the jam sample and the last sample.
+
+    The stride leaves room for the two extra samples, so len(idx) <= max_points.
+    """
+    step = max(1, math.ceil(n / (max_points - 2)))
     idx = np.union1d(np.arange(0, n, step), [int(jam_idx), n - 1])
     return idx.astype(np.int64)
 

@@ -27,7 +27,10 @@ def _no_constants(x):
 
 def test_downsample_idx():
     idx = downsample_idx(10480, 2620)
-    assert len(idx) <= MAX_POINTS + 2
+    assert len(idx) <= MAX_POINTS
+    for n in (1499, 1500, 1501, 2996, 2997, 2998, 4497, 10480, 10481):
+        for jam in (1, n // 4, n - 2):
+            assert len(downsample_idx(n, jam)) <= MAX_POINTS, (n, jam)
     assert np.all(np.diff(idx) > 0)
     assert {0, 2620, 10479} <= set(idx.tolist())
 
