@@ -25,10 +25,10 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Classical Baselines
 
-- [ ] **BASE-01**: Tolles-Lawson ridge regression (permanent + induced + eddy terms from the fluxgate vector, optional `cur_*` columns, 0.1–0.9 Hz bandpass) fitted on calibration line 1006.08 compensates one cabin magnetometer toward the stinger reference (`mag_1_c`) and serves as the primary classical baseline
-- [ ] **BASE-02**: An equal-feature classical learner (RBF kernel ridge) trained on the TL residual with exactly the features and train/test split the quantum model uses serves as the fair comparison partner
+- [x] **BASE-01**: Tolles-Lawson ridge regression (permanent + induced + eddy terms from the fluxgate vector, optional `cur_*` columns, 0.1–0.9 Hz bandpass) fitted on calibration line 1006.08 compensates one cabin magnetometer toward the stinger reference (`mag_1_c`) and serves as the primary classical baseline
+- [x] **BASE-02**: An equal-feature classical learner (RBF kernel ridge) trained on the TL residual with exactly the features and train/test split the quantum model uses serves as the fair comparison partner
 - [x] **BASE-03**: A naive low-pass filter on the cabin magnetometer is reported as the floor
-- [ ] **BASE-04**: Models are trained on calibration line 1006.08 and evaluated only on held-out lines 1003.02 and 1007.06; denoisers predict `mag_1_c`, and the map-matching leg uses the `mag_1_igrf`-equivalent (IGRF + diurnal removed) cleaned signal
+- [x] **BASE-04**: Models are trained on calibration line 1006.08 and evaluated only on held-out lines 1003.02 and 1007.06; denoisers predict `mag_1_c`, and the map-matching leg uses the `mag_1_igrf`-equivalent (IGRF + diurnal removed) cleaned signal
 
 ### Quantum Denoiser
 
@@ -42,7 +42,7 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 ### Navigation
 
 - [x] **NAV-01**: Windowed-correlation (TERCOM-style) matching slides each cleaned-signal window over the Eastern_395 / Renfrew_395 map within a search region centred on the simulated INS-drift prior, picks the best-correlating offset, never matches through invalid (k-NN-filled) cells, and estimates position from `Sensors` and the map only
-- [ ] **NAV-02**: The matcher is run once per denoiser output (raw cabin, low-pass, TL, classical KRR, quantum) on identical held-out lines and segments so position error can be compared across denoisers
+- [x] **NAV-02**: The matcher is run once per denoiser output (raw cabin, low-pass, TL, classical KRR, quantum) on identical held-out lines and segments so position error can be compared across denoisers
 - [x] **NAV-03**: A "GPS jammed at t=X" event switches estimation to magnetic-only after that point, so the demo shows drift without MagNav and hold with it
 
 ### Metrics & Benchmarks
@@ -140,10 +140,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-03 | Phase 2 | Complete |
 | DATA-04 | Phase 2 | Complete |
 | DATA-05 | Phase 2 | Complete |
-| BASE-01 | Phase 2 | Pending |
-| BASE-02 | Phase 2 | Pending |
+| BASE-01 | Phase 2 | Complete |
+| BASE-02 | Phase 2 | Complete |
 | BASE-03 | Phase 2 | Complete |
-| BASE-04 | Phase 2 | Pending |
+| BASE-04 | Phase 2 | Complete |
 | QNT-01 | Phase 4 | Pending |
 | QNT-02 | Phase 4 | Pending |
 | QNT-03 | Phase 4 | Pending |
@@ -151,7 +151,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QNT-05 | Phase 4 | Pending |
 | QNT-06 | Phase 4 | Pending |
 | NAV-01 | Phase 2 | Complete |
-| NAV-02 | Phase 2 | Pending |
+| NAV-02 | Phase 2 | Complete |
 | NAV-03 | Phase 2 | Complete |
 | METR-01 | Phase 2 | Complete |
 | METR-02 | Phase 5 | Pending |

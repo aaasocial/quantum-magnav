@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-10T09:10:40.811Z"
-last_activity: 2026-10-10 -- Phase 2 planning complete
+last_updated: "2026-10-10T09:29:32.156Z"
+last_activity: 2026-10-10
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 17
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 2 of 6 (real flight data and classical pipeline)
-Plan: 2 of 3 (02-01 complete)
-Status: Executing Phase 2
-Last activity: 2026-10-10 -- Completed 02-01 (real excerpts, DR, TERCOM, thin metrics)
+Plan: 3 of 3 (02-01 complete)
+Status: Ready to execute
+Last activity: 2026-10-10
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -58,6 +58,7 @@ Progress: [███████░░░] 67%
 | Phase 01 P02 | 5 min | 2 tasks | 13 files |
 | Phase 01 P03 | 45 min | 2 tasks | 6 files |
 | Phase 02 P01 | 10 min | 3 tasks | 21 files |
+| Phase 02 P02 | 35 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,7 @@ Recent decisions affecting current work:
 - [Phase 01]: [01-03]: Submission format = Qollab JS project; shots <= 4096 (verified), ~12 s per Forte 1 job; sklearn not preloaded (add to requirements.txt or use numpy); platform qiskit-ionq 1.0.2
 - [Phase 02]: [02-01]: TERCOM output median uses the last 3 raw estimates propagated to the current window end by DR increments (output-only)
 - [Phase 02]: [02-01]: Thin run: raw/lowpass drift on both lines; DR mean 1091/1112 m; truth-signal TERCOM holds at ~70-80 m
+- [Phase 02]: 02-02: kept flux_a + calibration-split lambda (D-09); held-out-informed alternatives documented in 02-02-SUMMARY, not applied
 
 ### Pending Todos
 
@@ -92,6 +94,7 @@ None yet.
 - Slack #hackathon-help credits question pending (extra credits? cost of ~500-shot Forte 1 hardware run); 100 credits on profile; decides QNT-06
 - Phase 4 must use exactly one circuit per IonQ job (multi-circuit jobs rejected with HTTP 400)
 - Qollab has no 'Quantum Impact' tag; theme-tag mechanism for submission unknown
+- Mag 5 TL does not hold on 1007.06 (26.9% under 556 m) with flux_a/cal-split lambda; user must choose TL config (A plan / B flux_d / C MagNav lambda 0.025) at the Plan 03 checkpoint - see 02-02-SUMMARY
 
 ### Quick Tasks Completed
 
@@ -108,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T09:10:35.864Z
+Last session: 2026-10-10T09:29:26.851Z
 Stopped at: Completed 01-03-PLAN.md
 Resume file: None

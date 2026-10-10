@@ -92,7 +92,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md — Tolles-Lawson and TL+currents fitted on 1006.08, equal-feature numpy KRR, QuantumDenoiser stub (never calls backend.run), six-denoiser run for Mag 5 and Mag 4
+- [x] 02-02-PLAN.md — Tolles-Lawson and TL+currents fitted on 1006.08, equal-feature numpy KRR, QuantumDenoiser stub (never calls backend.run), six-denoiser run for Mag 5 and Mag 4
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
