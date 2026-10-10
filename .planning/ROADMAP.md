@@ -60,7 +60,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Vite lib-mode toolchain, magnav.api bridge and React smoke page bundled to root main.js/main.css, Qollab contract test
+- [x] 01-02-PLAN.md — Vite lib-mode toolchain, magnav.api bridge and React smoke page bundled to root main.js/main.css, Qollab contract test
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
