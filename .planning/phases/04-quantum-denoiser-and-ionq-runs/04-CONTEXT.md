@@ -40,6 +40,11 @@ Platform constraints (docs/QOLLAB_FINDINGS.md): Qollab IonQ proxy accepts only `
 - D-15: UI-04: StatusStrip gains provenance badges for the quantum leg (backend name, shots, timestamp, "recorded hardware result" / "proxy"), and the metrics table gains the quantum rows (designed, identity, random) with the shot-noise error bar; the "Quantum slot (stub until Phase 4)" label is replaced by "Quantum feature map".
 - D-16: Phase 4 keeps every Phase 3 contract: single `main.js` ES module < 1.5 MB, zero exports, precomputed-first with live fallback, one aria-live region, no `setTimeout` outside probe.js.
 
+### Post-research amendments (D-17..D-19, accepted by the builder 2026-10-10 after 04-RESEARCH.md)
+- D-17 (amends D-07/D-09): K = 4 samples (16 qubits) on the built-in simulator; K = 7 (28 qubits) on IonQ Forte 1 remote simulator and hardware. A free "ladder" run on the Forte remote simulator (K=7 @4096 shots → K=7 @1024 → K=6 → K=5) is performed right after the circuit is frozen to find the largest K that runs; the chosen K is recorded in provenance.
+- D-18 (amends D-06): full-line and in-page quantum predictions use a numpy simulation of the identical circuit (verified to match `qiskit.quantum_info.Statevector` to ~6e-16, ~70× faster); training (readout fit) and the K verification samples still use Qiskit `Statevector` exactly; every run records the max |Δ| between the two engines in provenance.
+- D-19 (amends D-02/D-04): gate order H, [RZ, RY, CZ-ring] × 3, H so every angle and every CZ affects the Z-basis measurement; the ridge readout is shot-noise-aware (penalises the expected shot variance of each correlator), chosen by the same blocked CV on 1006.08; the resulting shot-noise error bar is reported (D-08).
+
 ### Claude's Discretion
 Exact ridge/bandwidth grids, circuit transpilation settings for IonQ (`optimization_level` 0–1), how correlators are extracted from counts (bitstring ordering), the Statevector batching for 7568 samples (vectorize by building the state per sample; ~ms each), artifact field names under `quantum.*`, and the in-page progress wording for the quantum stages.
 
