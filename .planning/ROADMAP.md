@@ -147,19 +147,27 @@ Plans:
   4. A hardware job (500+ shots) is submitted as soon as the circuit is frozen; `data/forte_hardware_run.json` holds counts, backend name, shots and timestamp, or the `forte-1` noise-model result is used and labeled as a proxy
   5. The metrics panel shows the benchmark table and provenance badges: "computed in-page" vs "precomputed replay", IonQ backend/shots/timestamp for the quantum leg, and the hardware-result label
 
-**Plans**: 3 plans
+**Plans**: 5 plans
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Frozen feature-map circuit, Statevector + numpy engines, shot-aware ridge, identity/random ablations, diagnostics, data/quantum_model.json, pipeline/artifact/main.py/live integration, quantum rows + label renames in the UI
+- [ ] 04-01-PLAN.md — magnav/quantum.py: frozen feature-map circuit, Statevector + numpy engines, packed circuit + counts decoding, shot-aware ridge with blocked CV, identity/random maps, diagnostics, verification helpers, model I/O (tests)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 04-02-PLAN.md — api.quantum_verify single bare-circuit job + one-job guard, quantum_recorded, VerifyPanel/badges (UI-04), bundle + zip, Qollab check (upload only, built-in K=4, Forte 1 sim ladder)
+- [ ] 04-02-PLAN.md — Pipeline/artifact/metrics/main.py/live integration, ablation rows, built-in K=4 verification, data/quantum_model.json + regenerated artifact, full suite green
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 04-03-PLAN.md — Builder-approved IonQ Forte 1 hardware Run (human-action), data/forte_hardware_run.json (hardware or labeled proxy), ladder constants, honest README method notes
+- [ ] 04-03-PLAN.md — UI: Quantum feature map / identity / random rows, measured shot-noise line, live n/a note, stub label renames, rebuilt bundle
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-04-PLAN.md — api.quantum_verify single bare-circuit job, one shared IonQ one-job flag (run_bell_batch + quantum_verify), quantum_recorded, VerifyPanel/badges with hardware waiting state (UI-04), bundle + zip, Qollab check (upload only, built-in K=4, Forte 1 sim ladder)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 04-05-PLAN.md — Builder-approved IonQ Forte 1 hardware Run (human-action), data/forte_hardware_run.json (hardware or labeled proxy), ladder constants, honest README method notes
 **UI hint**: yes
 
 ### Phase 5: Benchmarks, Accessibility and Polish
