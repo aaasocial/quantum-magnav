@@ -147,7 +147,19 @@ Plans:
   4. A hardware job (500+ shots) is submitted as soon as the circuit is frozen; `data/forte_hardware_run.json` holds counts, backend name, shots and timestamp, or the `forte-1` noise-model result is used and labeled as a proxy
   5. The metrics panel shows the benchmark table and provenance badges: "computed in-page" vs "precomputed replay", IonQ backend/shots/timestamp for the quantum leg, and the hardware-result label
 
-**Plans**: TBD (target 3: circuit + Statevector training + readout + ablation; single-job IonQ inference + Qollab run; hardware submission + provenance UI)
+**Plans**: 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Frozen feature-map circuit, Statevector + numpy engines, shot-aware ridge, identity/random ablations, diagnostics, data/quantum_model.json, pipeline/artifact/main.py/live integration, quantum rows + label renames in the UI
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md — api.quantum_verify single bare-circuit job + one-job guard, quantum_recorded, VerifyPanel/badges (UI-04), bundle + zip, Qollab check (upload only, built-in K=4, Forte 1 sim ladder)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-03-PLAN.md — Builder-approved IonQ Forte 1 hardware Run (human-action), data/forte_hardware_run.json (hardware or labeled proxy), ladder constants, honest README method notes
 **UI hint**: yes
 
 ### Phase 5: Benchmarks, Accessibility and Polish
