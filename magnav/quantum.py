@@ -23,7 +23,9 @@ Training is classical (ridge on exact correlators). The single verification job 
 `magnav.api`.
 """
 
+import hashlib
 import json
+from pathlib import Path
 
 import numpy as np
 from qiskit import QuantumCircuit
@@ -251,6 +253,104 @@ def block_correlators_from_counts(counts: dict, k: int):
 
 
 # ---------------------------------------------------------------------------
+# Shot-aware ridge readout (D-04, D-19)
+# ---------------------------------------------------------------------------
+
+_EPS = 1e-12
+FEATURE_MAPS = ("designed", "identity", "random")
+SELECTION_MAP = "5-block CV on 1006.08 only, score sqrt(CV^2 + sigma_shot(4096)^2)"
+SELECTION_IDENTITY = "5-block CV on 1006.08 only, score CV RMSE (plain ridge on the 22 standardised features)"
+ENGINE_TEXT = (
+    "qiskit Statevector (training, verification samples) + numpy batch statevector (prediction), cross-checked"
+)
+RANDOM_ORDER = "H,[data RZ(4),data RY(4) on a seeded slot permutation, fixed RZ(4), fixed RY(4), 4 seeded CZ]x3,H"
+
+
+def _ridge(X: np.ndarray, y: np.ndarray, lam: float, noise: np.ndarray):
+    """Centred ridge with per-column Tikhonov term N*noise: returns (w, x_mean, y_mean)."""
+    m, ym = X.mean(axis=0), float(y.mean())
+    Xc = X - m
+    A = Xc.T @ Xc + np.diag(len(X) * noise) + float(lam) * np.eye(X.shape[1])
+    b = Xc.T @ (y - ym)
+    try:
+        w = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:
+        w = np.linalg.lstsq(A, b, rcond=None)[0]
+    return w, m, ym
+
+
+def ridge_shot_aware(C, y, lam: float, shots: int = SHOTS_REF):
+    """Ridge on RAW correlators with the expected shot covariance as penalty (RESEARCH Pattern 3).
+
+    Penalty = N * diag(mean((1 - C^2) / shots)) + lambda * I; no per-column standardisation
+    (standardising tiny-variance correlators is exactly what amplifies shot noise).
+    Returns (w, corr_mean, y_mean); predict = (C - corr_mean) @ w + y_mean.
+    """
+    C = np.asarray(C, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    noise = np.mean((1.0 - C**2) / float(shots), axis=0)
+    return _ridge(C, y, lam, noise)
+
+
+def shot_sigma(C, w, shots: int) -> float:
+    """Expected prediction standard deviation (nT) from shot noise at `shots` shots."""
+    C = np.asarray(C, dtype=np.float64)
+    w = np.asarray(w, dtype=np.float64)
+    return float(np.sqrt(np.mean(np.sum(w**2 * (1.0 - C**2) / float(shots), axis=1))))
+
+
+def _blocked_cv(X: np.ndarray, y: np.ndarray, fit, n_blocks: int = CV_BLOCKS) -> float:
+    """Out-of-block RMSE over contiguous blocks (edges as classical._blocked_cv_rmse)."""
+    edges = np.linspace(0, len(y), n_blocks + 1).astype(int)
+    sq, count = 0.0, 0
+    for k in range(n_blocks):
+        test = np.zeros(len(y), dtype=bool)
+        test[edges[k] : edges[k + 1]] = True
+        w, m, ym = fit(X[~test], y[~test])
+        err = y[test] - ((X[test] - m) @ w + ym)
+        sq += float(np.sum(err * err))
+        count += int(test.sum())
+    return float(np.sqrt(sq / count))
+
+
+# calibration Statevector correlators keyed by (sha1(z bytes), fmap, gates hash, bandwidth), so
+# a second sensor with the same fluxgate (identical standardised features) reuses them
+_CAL_CORR_CACHE: dict = {}
+
+
+def _gates_key(gates) -> str:
+    return "" if gates is None else hashlib.sha1(json.dumps(gates, sort_keys=True).encode()).hexdigest()
+
+
+def _cal_correlators(Z: np.ndarray, fmap: str, gates, bandwidth: float) -> np.ndarray:
+    zkey = hashlib.sha1(np.ascontiguousarray(Z, dtype=np.float64).tobytes()).hexdigest()
+    key = (zkey, fmap, _gates_key(gates), float(bandwidth))
+    if key not in _CAL_CORR_CACHE:
+        _CAL_CORR_CACHE[key] = correlators_statevector(angles(Z, bandwidth), fmap, gates)
+    return _CAL_CORR_CACHE[key]
+
+
+def _circuit_info(fmap: str):
+    if fmap == "identity":
+        return None
+    info = {
+        "n_qubits": N_QUBITS,
+        "layers": N_LAYERS,
+        "order": CIRCUIT_ORDER if fmap == "designed" else RANDOM_ORDER,
+        "slots": SLOTS_TEXT,
+        "clip_sd": CLIP_SD,
+        "angle": ANGLE_TEXT,
+        "correlator_masks": list(MASKS),
+    }
+    if fmap == "designed":
+        info["gate_counts_per_block"] = {"h": 8, "rz": 12, "ry": 12, "cz": 12}
+    else:
+        info["gate_counts_per_block"] = {"h": 8, "rz": 24, "ry": 24, "cz": 12}
+        info["seed"] = RANDOM_MAP_SEED
+    return info
+
+
+# ---------------------------------------------------------------------------
 # Residual model slot
 # ---------------------------------------------------------------------------
 
@@ -263,50 +363,338 @@ def _backend_name(backend):
     return None if name is None else str(name)
 
 
-
 class QuantumDenoiser:
-    """Quantum residual model slot. Status "stub": zero correction, no job submitted."""
+    """Fixed feature map + shot-aware ridge readout on the TL residual (QNT-01, QNT-02).
+
+    feature_map: "designed" (the frozen circuit), "random" (seeded ablation map, D-10b) or
+    "identity" (ridge on the 22 standardised features, D-10a); all three train through
+    this one code path. `frozen` is a readout dict (from data/quantum_model.json): fit()
+    then only loads it and checks it still matches the calibration features.
+    The injected backend is recorded for provenance and never used.
+    """
 
     name = "quantum"
-    status = "stub"
+    status = "feature_map_ridge"
 
-    def __init__(self, backend=None):
+    def __init__(self, backend=None, feature_map: str = "designed", frozen=None):
+        if feature_map not in FEATURE_MAPS:
+            raise ValueError(f"unknown feature map {feature_map!r}; expected one of {FEATURE_MAPS}")
+        if frozen is not None and frozen.get("feature_map", feature_map) != feature_map:
+            raise ValueError(f"frozen readout is for feature map {frozen.get('feature_map')!r}, not {feature_map!r}")
         self.backend = backend
+        self.feature_map = feature_map
+        self.frozen = frozen
+        self.gates = random_map_gates(RANDOM_MAP_SEED) if feature_map == "random" else None
         self.n_features = None
+        self.mu = None
+        self.sd = None
+        self.bandwidth = None
+        self.lam = None
+        self.corr_mean = None
+        self.weights = None
+        self.y_mean = None
+        self.cv_score = None
+        self.cv_table = None
+        self.shot_sigma_nT = None
+        self.statevector_check_max_abs = None
 
+    # -- helpers ----------------------------------------------------------------------
+    def standardise(self, features) -> np.ndarray:
+        """Calibration-standardised features z = (F - mu) / sd."""
+        return (np.asarray(features, dtype=np.float64) - self.mu) / self.sd
+
+    def _readout_input(self, Z: np.ndarray) -> np.ndarray:
+        if self.feature_map == "identity":
+            return Z
+        return correlators_batch(angles(Z, self.bandwidth), self.feature_map, self.gates)
+
+    def _check_engines(self, Z: np.ndarray, C_sv=None) -> float:
+        if self.feature_map == "identity":
+            return 0.0
+        theta = angles(Z, self.bandwidth)
+        if C_sv is None:
+            C_sv = correlators_statevector(theta, self.feature_map, self.gates)
+        return float(np.abs(correlators_batch(theta, self.feature_map, self.gates) - C_sv).max())
+
+    # -- training ---------------------------------------------------------------------
     def fit(self, features, residual):
-        """Phase 4: classical readout training on the quantum feature map (statevector locally)."""
-        f = np.asarray(features, dtype=np.float64)
-        self.n_features = int(f.shape[1]) if f.ndim == 2 else None
+        F = np.asarray(features, dtype=np.float64)
+        y = np.asarray(residual, dtype=np.float64)
+        self.n_features = int(F.shape[1])
+        if self.frozen is not None:
+            return self._load_frozen(F)
+        self.mu = F.mean(axis=0)
+        sd = F.std(axis=0)
+        self.sd = np.where(sd > _EPS, sd, 1.0)
+        Z = self.standardise(F)
+        if self.feature_map == "identity":
+            self._fit_identity(Z, y)
+        else:
+            self._fit_map(Z, y)
         return self
 
+    def _fit_identity(self, Z: np.ndarray, y: np.ndarray) -> None:
+        zero = np.zeros(Z.shape[1])
+        table, best = [], None
+        for lam in LAMBDAS_IDENTITY:
+            cv = _blocked_cv(Z, y, lambda X, t, lam=lam: _ridge(X, t, lam, zero))
+            table.append({"bandwidth": None, "lambda": float(lam), "cv_rmse": cv, "shot_sigma_4096": 0.0, "score": cv})
+            key = (round(cv, 9), -float(lam))
+            if best is None or key < best[0]:
+                best = (key, float(lam), cv)
+        _, self.lam, self.cv_score = best
+        self.bandwidth = None
+        self.weights, self.corr_mean, self.y_mean = _ridge(Z, y, self.lam, zero)
+        self.cv_table = table
+        self.shot_sigma_nT = {"500": 0.0, "4096": 0.0}
+        self.statevector_check_max_abs = 0.0
+
+    def _fit_map(self, Z: np.ndarray, y: np.ndarray) -> None:
+        table, best = [], None
+        for b in BANDWIDTHS:
+            C = _cal_correlators(Z, self.feature_map, self.gates, b)
+            for lam in LAMBDAS_QUANTUM:
+                cv = _blocked_cv(C, y, lambda X, t, lam=lam: ridge_shot_aware(X, t, lam))
+                w, _, _ = ridge_shot_aware(C, y, lam)
+                sig = shot_sigma(C, w, SHOTS_REF)
+                score = float(np.sqrt(cv * cv + sig * sig))
+                table.append(
+                    {"bandwidth": float(b), "lambda": float(lam), "cv_rmse": cv, "shot_sigma_4096": sig, "score": score}
+                )
+                key = (round(score, 9), -float(lam), float(b))  # ties: larger lambda, then smaller bandwidth
+                if best is None or key < best[0]:
+                    best = (key, float(b), float(lam), score)
+        _, self.bandwidth, self.lam, self.cv_score = best
+        C = _cal_correlators(Z, self.feature_map, self.gates, self.bandwidth)
+        self.weights, self.corr_mean, self.y_mean = ridge_shot_aware(C, y, self.lam)
+        self.cv_table = table
+        self.shot_sigma_nT = {
+            "500": shot_sigma(C, self.weights, SHOTS_HARDWARE),
+            "4096": shot_sigma(C, self.weights, SHOTS_REF),
+        }
+        self.statevector_check_max_abs = self._check_engines(Z, C)
+
+    def _load_frozen(self, F: np.ndarray):
+        ro = self.frozen
+        mu = np.asarray(ro["feature_mu"], dtype=np.float64)
+        sd = np.asarray(ro["feature_sd"], dtype=np.float64)
+        now = F.mean(axis=0)
+        if now.shape != mu.shape or np.any(np.abs(now - mu) > 1e-6 * (np.abs(mu) + sd)):
+            raise ValueError("data/quantum_model.json is stale for these calibration features")
+        self.mu, self.sd = mu, sd
+        self.bandwidth = None if ro["bandwidth"] is None else float(ro["bandwidth"])
+        self.lam = float(ro["lambda"])
+        self.corr_mean = np.asarray(ro["corr_mean"], dtype=np.float64)
+        self.weights = np.asarray(ro["weights"], dtype=np.float64)
+        self.y_mean = float(ro["y_mean"])
+        self.cv_score = ro.get("cv_score")
+        self.cv_table = ro.get("cv_table")
+        self.shot_sigma_nT = dict(ro.get("shot_sigma_nT") or {})
+        if self.feature_map == "random":
+            self.gates = ro["gates"]
+        self.statevector_check_max_abs = self._check_engines(self.standardise(F[:8]))
+        return self
+
+    # -- inference --------------------------------------------------------------------
     def predict(self, features) -> np.ndarray:
-        """Residual correction in nT; the stub returns zeros."""
-        return np.zeros(len(features))
+        """Residual correction in nT (numpy batch engine; never touches the backend)."""
+        if self.weights is None:
+            raise RuntimeError("QuantumDenoiser.predict called before fit")
+        F = np.asarray(features, dtype=np.float64)
+        if len(F) == 0:
+            return np.zeros(0)
+        return (self._readout_input(self.standardise(F)) - self.corr_mean) @ self.weights + self.y_mean
+
+    @property
+    def readout(self) -> dict:
+        """JSON-ready frozen readout (the per-sensor entry of data/quantum_model.json)."""
+        if self.weights is None:
+            raise RuntimeError("QuantumDenoiser.readout requested before fit")
+        out = {
+            "feature_map": self.feature_map,
+            "feature_mu": [float(v) for v in self.mu],
+            "feature_sd": [float(v) for v in self.sd],
+            "bandwidth": self.bandwidth,
+            "lambda": float(self.lam),
+            "corr_mean": [float(v) for v in self.corr_mean],
+            "weights": [float(v) for v in self.weights],
+            "y_mean": float(self.y_mean),
+            "cv_score": None if self.cv_score is None else float(self.cv_score),
+            "cv_table": self.cv_table,
+            "shot_sigma_nT": {k: float(v) for k, v in self.shot_sigma_nT.items()},
+        }
+        if self.feature_map == "random":
+            out["gates"] = self.gates
+        return out
 
     @property
     def provenance(self) -> dict:
         return {
-            "source": "stub",
+            "source": "feature_map_ridge",
+            "feature_map": self.feature_map,
             "backend": _backend_name(self.backend),
             "n_features": self.n_features,
-            "circuit": None,
+            "circuit": _circuit_info(self.feature_map),
+            "bandwidth": self.bandwidth,
+            "lambda": self.lam,
+            "cv_score": self.cv_score,
+            "cv_table": self.cv_table,
+            "selection": SELECTION_IDENTITY if self.feature_map == "identity" else SELECTION_MAP,
+            "shots_ref": SHOTS_REF,
+            "shot_sigma_nT": self.shot_sigma_nT,
+            "statevector_check_max_abs": self.statevector_check_max_abs,
+            "engine": "numpy ridge on standardised features" if self.feature_map == "identity" else ENGINE_TEXT,
         }
 
-    def run_inference(self, features) -> str:
-        """Return a JSON string describing the inference run.
 
-        Phase 4 builds exactly one circuit here and submits it in exactly one backend.run
-        call (the Qollab platform allows one single-circuit job per Run). The stub submits
-        nothing and reports status "stub".
-        """
-        return json.dumps(
-            {
-                "ok": False,
-                "status": self.status,
-                "backend": _backend_name(self.backend),
-                "n_windows": len(features),
-                "n_features": self.n_features,
-            },
-            allow_nan=False,
-        )
+# ---------------------------------------------------------------------------
+# Verification samples (D-07..D-09)
+# ---------------------------------------------------------------------------
+
+
+def verification_samples(den: QuantumDenoiser, features, indices) -> dict:
+    """Exact (Statevector) correlators and predictions for the K verification samples."""
+    if den.feature_map == "identity" or den.weights is None:
+        raise ValueError("verification_samples needs a fitted feature-map (designed/random) denoiser")
+    idx = [int(i) for i in indices]
+    theta = angles(den.standardise(np.asarray(features, dtype=np.float64)[idx]), den.bandwidth)
+    C = correlators_statevector(theta, den.feature_map, den.gates)
+    pred = (C - den.corr_mean) @ den.weights + den.y_mean
+    return {
+        "indices": idx,
+        "theta": theta.tolist(),
+        "exact_corr": C.tolist(),
+        "exact_pred_nT": [float(v) for v in pred],
+    }
+
+
+def verification_summary(counts: dict, sample: dict, readout: dict, k: int) -> dict:
+    """Compare shot-estimated correlators/predictions with the exact ones (pure; D-08)."""
+    k = int(k)
+    if k < 1 or k > len(sample["indices"]):
+        raise ValueError(f"K={k} outside 1..{len(sample['indices'])}")
+    corr, marg, total = block_correlators_from_counts(counts, k)
+    exact = np.asarray(sample["exact_corr"], dtype=np.float64)[:k]
+    err = corr - exact
+    cm = np.asarray(readout["corr_mean"], dtype=np.float64)
+    w = np.asarray(readout["weights"], dtype=np.float64)
+    shot_pred = (corr - cm) @ w + float(readout["y_mean"])
+    exact_pred = np.asarray(sample["exact_pred_nT"], dtype=np.float64)[:k]
+    delta = shot_pred - exact_pred
+    rows = [
+        {"index": int(i), "exact_pred_nT": float(e), "shot_pred_nT": float(s), "delta_nT": float(d)}
+        for i, e, s, d in zip(sample["indices"][:k], exact_pred, shot_pred, delta, strict=True)
+    ]
+    return {
+        "K": k,
+        "total_shots": int(total),
+        "max_abs_corr_err": float(np.abs(err).max()),
+        "rms_corr_err": float(np.sqrt(np.mean(err**2))),
+        "samples": rows,
+        "rms_pred_delta_nT": float(np.sqrt(np.mean(delta**2))),
+        "max_abs_pred_delta_nT": float(np.abs(delta).max()),
+        "marginals": marg.tolist(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Concentration diagnostics (D-11)
+# ---------------------------------------------------------------------------
+
+DIAG_QUANTILES = (5, 25, 50, 75, 95)
+DIAG_BINS = 20
+DIAG_PAIRS = 2000
+
+
+def concentration_diagnostics(den_designed: QuantumDenoiser, den_random: QuantumDenoiser, z_by_dataset: dict) -> dict:
+    """Correlator variance/histograms and pairwise-distance quantiles per dataset (RESEARCH Pattern 7).
+
+    z_by_dataset: {"1006.08" | "1003.02" | "1007.06": calibration-standardised features (n, 22)}.
+    """
+    pairs, input_q, frac = {}, {}, {}
+    for ds, z in z_by_dataset.items():
+        z = np.asarray(z, dtype=np.float64)
+        rng = np.random.default_rng(VERIFY_SEED)
+        i = rng.integers(0, len(z), DIAG_PAIRS)
+        j = rng.integers(0, len(z), DIAG_PAIRS)
+        pairs[ds] = (i, j)
+        d_in = np.linalg.norm(z[i] - z[j], axis=1) / np.sqrt(z.shape[1])
+        input_q[ds] = [float(v) for v in np.percentile(d_in, DIAG_QUANTILES)]
+        frac[ds] = float(np.mean(np.abs(z) > CLIP_SD))
+    out = {
+        "quantiles": list(DIAG_QUANTILES),
+        "hist_bins": DIAG_BINS,
+        "hist_range": [-1.0, 1.0],
+        "n_pairs": DIAG_PAIRS,
+        "seed": VERIFY_SEED,
+        "frac_clipped": frac,
+    }
+    for label, den in (("designed", den_designed), ("random", den_random)):
+        corr_var, corr_hist, pair_dist = {}, {}, {}
+        for ds, z in z_by_dataset.items():
+            C = np.clip(den._readout_input(np.asarray(z, dtype=np.float64)), -1.0, 1.0)
+            corr_var[ds] = [float(v) for v in C.var(axis=0)]
+            corr_hist[ds] = [
+                [int(c) for c in np.histogram(C[:, m], bins=DIAG_BINS, range=(-1.0, 1.0))[0]] for m in range(C.shape[1])
+            ]
+            i, j = pairs[ds]
+            d_c = np.linalg.norm(C[i] - C[j], axis=1) / np.sqrt(C.shape[1])
+            pair_dist[ds] = {"corr": [float(v) for v in np.percentile(d_c, DIAG_QUANTILES)], "input": input_q[ds]}
+        out[label] = {
+            "feature_map": den.feature_map,
+            "bandwidth": den.bandwidth,
+            "corr_var": corr_var,
+            "corr_hist": corr_hist,
+            "pair_dist": pair_dist,
+            "shot_sigma_nT": {k: float(v) for k, v in den.shot_sigma_nT.items()},
+        }
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Model file I/O (data/quantum_model.json)
+# ---------------------------------------------------------------------------
+
+
+def readout_sha256(sensors_dict: dict) -> str:
+    """sha256 of the per-sensor readouts, independent of key order."""
+    text = json.dumps(sensors_dict, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def build_model(sensors: dict, ablation: dict, samples: dict, random_gates: dict, statevector_check: float) -> dict:
+    """Assemble the data/quantum_model.json document (schema magnav.quantum_model.v1)."""
+    return {
+        "schema": MODEL_SCHEMA,
+        "circuit": _circuit_info("designed"),
+        "shots_ref": SHOTS_REF,
+        "k_policy": {
+            "builtin": K_BUILTIN,
+            "ionq_max": K_IONQ_MAX,
+            "shots_ionq_sim": SHOTS_IONQ_SIM,
+            "shots_hardware": SHOTS_HARDWARE,
+        },
+        "sensors": sensors,
+        "ablation": ablation,
+        "samples": samples,
+        "random_map": random_gates,
+        "statevector_check_max_abs": float(statevector_check),
+        "readout_sha256": readout_sha256(sensors),
+    }
+
+
+def write_model(model: dict, path=MODEL_PATH) -> int:
+    """Deterministic JSON (sorted keys, no NaN, trailing newline); returns bytes written."""
+    data = (json.dumps(model, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    if len(data) > MODEL_MAX_BYTES:
+        raise ValueError(f"quantum model is {len(data)} bytes, above the 2 MB Qollab file limit")
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(data)
+    return len(data)
+
+
+def load_model(path=MODEL_PATH) -> dict:
+    """Load the frozen model with json.load only (no pickle)."""
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
