@@ -32,8 +32,8 @@ Requirements for the hackathon submission (deadline Oct 11, 2026, 7:00 PM ET). E
 
 ### Quantum Denoiser
 
-- [ ] **QNT-01**: A Qiskit fixed feature-map circuit on 4–6 qubits (≤3 entangling layers) encodes the aircraft-state features (fluxgate direction cosines and their derivatives, plus `cur_*` current channels) for each window
-- [ ] **QNT-02**: Training features are computed with exact `qiskit.quantum_info.Statevector` locally, so training never calls `backend.run`; a classical ridge readout is fit on the TL residual
+- [x] **QNT-01**: A Qiskit fixed feature-map circuit on 4–6 qubits (≤3 entangling layers) encodes the aircraft-state features (fluxgate direction cosines and their derivatives, plus `cur_*` current channels) for each window
+- [x] **QNT-02**: Training features are computed with exact `qiskit.quantum_info.Statevector` locally, so training never calls `backend.run`; a classical ridge readout is fit on the TL residual
 - [ ] **QNT-03**: Inference on IonQ submits exactly ONE `backend.run(circuit)` call per Run holding a single circuit (Qollab rejects multi-circuit jobs); all evaluation windows are packed into that one circuit on disjoint qubit blocks (≤29 qubits on Forte 1) or run on the built-in/local simulator with the forte-1 noise model, results are read via `get_counts()` (never `BackendSamplerV2`), and a test asserts `backend.run` is called exactly once with a bare circuit
 - [ ] **QNT-04**: The quantum module accepts `backend` as an argument and runs without errors on IonQ Forte 1 (remote simulator) when a visitor presses Run on Qollab, and degrades gracefully on the built-in browser simulator
 - [ ] **QNT-05**: An ablation (identity / random feature map) and a kernel-concentration / feature-histogram check are run and reported so the circuit's contribution is demonstrated, not assumed
@@ -144,8 +144,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BASE-02 | Phase 2 | Complete |
 | BASE-03 | Phase 2 | Complete |
 | BASE-04 | Phase 2 | Complete |
-| QNT-01 | Phase 4 | Pending |
-| QNT-02 | Phase 4 | Pending |
+| QNT-01 | Phase 4 | Complete |
+| QNT-02 | Phase 4 | Complete |
 | QNT-03 | Phase 4 | Pending |
 | QNT-04 | Phase 4 | Pending |
 | QNT-05 | Phase 4 | Pending |

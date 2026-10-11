@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 03-04-PLAN.md
-last_updated: "2026-10-11T00:38:58.802Z"
+last_updated: "2026-10-11T00:52:17.646Z"
 last_activity: 2026-10-11 -- Phase 4 planning complete
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 15
-  completed_plans: 10
+  completed_plans: 11
   percent: 50
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-09)
 ## Current Position
 
 Phase: 4 of 6 (quantum denoiser and ionq runs)
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-10-11 -- Phase 4 planning complete
+Plan: 2 of 5
+Status: Executing (04-01 complete)
+Last activity: 2026-10-11 -- Completed 04-01 (frozen quantum circuit + shot-aware denoiser module)
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 73%
 
 **Deadline:** Oct 11, 2026 4:00 PM PDT (7:00 PM ET). Phase 6 keeps ~3 h buffer before it.
 
@@ -66,6 +66,7 @@ Progress: [██████████] 100%
 | Phase 03 P02 | 12 min | 2 tasks | 22 files |
 | Phase 03 P03 | 9 min | 3 tasks | 15 files |
 | Phase 03 P04 | 35 min | 4 tasks | 26 files |
+| Phase 04 P01 | 11 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 03]: 03-03: keep-alive treats playing / live-in-flight as activity; runDone resolves only on End run or 30 min idle (never on missing backend)
 - [Phase 03]: 03-04: chunked live mode validated on Qollab: 31.6 ms/window in Pyodide (2.7x CPython); 1003.02 live run 28.8 s, 1007.06 projected ~40 s, inside the 90 s deadline
 - [Phase 03]: 03-04: on Qollab Python runs on the page main thread and the injected setTimeout returns a promise; keep Python calls short and schedule with rAF/MessageChannel/performance.now
+- [Phase 04]: 04-01: shot-aware ridge on raw correlators chosen by sqrt(CV^2+sigma_shot(4096)^2); mag_5_uc designed b=0.25 lambda=0.1 CV 16.93 nT, sigma_shot 1.83/5.24 nT at 4096/500 shots
+- [Phase 04]: 04-01: random ablation map stores one seeded 24-slot permutation per layer (each feature enters once); frozen readout stale guard tol 1e-6*(|mu|+sd)
 
 ### Pending Todos
 
@@ -131,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-10T17:38:06.921Z
+Last session: 2026-10-11T00:52:10.827Z
 Stopped at: Completed 03-04-PLAN.md
 Resume file: None

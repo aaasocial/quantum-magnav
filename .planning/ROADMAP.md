@@ -151,7 +151,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — magnav/quantum.py: frozen feature-map circuit, Statevector + numpy engines, packed circuit + counts decoding, shot-aware ridge with blocked CV, identity/random maps, diagnostics, verification helpers, model I/O (tests)
+- [x] 04-01-PLAN.md — magnav/quantum.py: frozen feature-map circuit, Statevector + numpy engines, packed circuit + counts decoding, shot-aware ridge with blocked CV, identity/random maps, diagnostics, verification helpers, model I/O (tests)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
